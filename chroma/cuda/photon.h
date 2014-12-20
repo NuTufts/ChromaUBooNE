@@ -95,6 +95,8 @@ enum {
 __device__ void 
 pdump( Photon& p, int photon_id, int status, int steps, int command, int slot )
 {
+#if __CUDA_ARCH__ >= 200
+  // printf only supported for computer capability > 2.0
     switch(status)
     {
        case STATUS_NONE                   : printf("NONE             ")  ; break ;
@@ -147,6 +149,7 @@ pdump( Photon& p, int photon_id, int status, int steps, int command, int slot )
     if (p.history & U_NAN_ABORT )      printf("NAN_ABORT ");
 
     printf("\n");
+#endif
 }
 
 
@@ -369,7 +372,7 @@ int propagate_to_boundary(Photon &p, State &s, curandState &rng,
 
     //  RAYLEIGH_SCATTER(CONTINUE)  .time .position advanced to scatter point .direction .polarization twiddled 
     //
-    else 
+    else
     {
         if (scattering_distance <= s.distance_to_boundary) {
 

@@ -191,7 +191,9 @@ intersect_mesh(const float3 &origin, const float3& direction, Geometry *g,
             maxcurr = max( maxcurr, curr );
 
 	        if (curr >= STACK_SIZE) {
+#if __CUDA_ARCH__ >= 200
 	    	    printf("warning: intersect_mesh() aborted; node > tail\n");
+#endif
 	    	    break;
 	        }
 	    }    // loop over children, starting with first_child
