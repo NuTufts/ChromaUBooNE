@@ -13,6 +13,7 @@ from chroma.cuda import srcdir
 
 # standard nvcc options
 cuda_options = ('--use_fast_math',)#, '--ptxas-options=-v']
+#cuda_options = ()
 
 
 def template_substitute( source, template_uncomment ):
@@ -123,16 +124,36 @@ __global__ void init_rng(int nthreads, curandState *s, unsigned long long seed, 
 } // extern "C"
 """
 
-def get_rng_states(size, seed=1, offset=0):
+def get_rng_states(size, seed=1):
     "Return `size` number of CUDA random number generator states."
     rng_states = cuda.mem_alloc(size*characterize.sizeof('curandStateXORWOW', '#include <curand_kernel.h>'))
 
     module = pycuda.compiler.SourceModule(init_rng_src, no_extern_c=True)
     init_rng = module.get_function('init_rng')
 
-    init_rng(np.int32(size), rng_states, np.uint64(seed), np.uint64(offset), block=(64,1,1), grid=(size//64+1,1))
+    init_rng(np.int32(size), rng_states, np.uint64(seed), np.uint64(0), block=(64,1,1), grid=(size//64+1,1))
 
     return rng_states
+
+get_random_array_kernel = """
+#include <curand_kernel.h>
+extern "C"                                                                                                                                                                                                                                                   {                                                                                                                                                                                                                                                             __global__ void get_random_array(float* out, int nthreads, curandState *s ) 
+{
+  int id = blockIdx.x*blockDim.x + threadIdx.x;
+  if (id >= nthreads)
+   return;
+  curandState rng = s[id];
+  out[id] = curand_uniform(&rng);
+  s[id] = rng;
+}
+} // extern "C"
+"""
+def get_random_array( size, rng_states ):
+    dest = np.zeros(size,dtype=np.float32)
+    module = pycuda.compiler.SourceModule(get_random_array_kernel, no_extern_c=True)
+    fgpu_get_random_array = module.get_function('get_random_array')
+    fgpu_get_random_array( cuda.Out(dest), np.int32(size), rng_states,  block=(64,1,1), grid=(size//64+1,1) )
+    return dest
 
 def to_float3(arr):
     "Returns an pycuda.gpuarray.vec.float3 array from an (N,3) array."
@@ -195,7 +216,7 @@ def create_cuda_context(device_id=None, context_flags=None):
             context = device.make_context(context_flags)
 
     context.set_cache_config(cuda.func_cache.PREFER_L1)
-
+    print "context created: ",context
     return context
 
 vec_dtypes = set([ x for x in ga.vec.__dict__.values() if type(x) == np.dtype ])
@@ -214,10 +235,10 @@ def make_gpu_struct(size, members):
                                 'arrange struct member variables in order of '
                                 'decreasing size.')
 
-            cuda.memcpy_htod(int(struct)+i, np.intp(int(member)))
+            cuda.memcpy_htod(int(struct)+i, np.getbuffer(np.intp(member)) )
             i += 8
         elif np.isscalar(member) or (hasattr(member, 'dtype') and member.dtype in vec_dtypes and member.shape == ()):
-            cuda.memcpy_htod(int(struct)+i, member)
+            cuda.memcpy_htod(int(struct)+i, np.getbuffer(member))
             i += member.nbytes
         else:
             raise TypeError('expected a GPU device pointer or scalar type.')
