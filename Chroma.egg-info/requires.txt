@@ -1,0 +1,9 @@
+uncertainties
+pyzmq-static
+spnav
+pycuda
+numpy>=1.6
+pygame
+nose
+sphinx
+unittest2
