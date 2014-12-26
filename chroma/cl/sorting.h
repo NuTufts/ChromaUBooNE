@@ -7,6 +7,9 @@ void swap( void* a, void* b, size_t size );
 void reverse(int n, void* array, size_t elemsize );
 void piksrt( int n, float* arrf );
 void piksrt2( int n, float* arrf, uint4* arrvec );
+unsigned long searchsorted(unsigned long n, float *arr, const float*x);
+void insert(unsigned long n, void *arr, unsigned long i, const void *x, size_t elemsize);
+void add_sorted(unsigned long n, float *arr, const float *x);
 
 /* template <class T> */
 /* __device__ void */
@@ -124,49 +127,84 @@ void piksrt2( int n, float* arrf, uint4* arrvec ) {
    maintain order. If `n` equals one, return the index such that, when
    `x` is inserted, `arr` will be in ascending order.
 */
-template <class T>
-__device__ unsigned long
-searchsorted(unsigned long n, T *arr, const T &x)
-{
-    unsigned long ju,jm,jl;
-    int ascnd;
+/* template <class T> */
+/* __device__ unsigned long */
+/* searchsorted(unsigned long n, T *arr, const T &x) */
+/* { */
+/*     unsigned long ju,jm,jl; */
+/*     int ascnd; */
 
-    jl = 0;
-    ju = n;
+/*     jl = 0; */
+/*     ju = n; */
 
-    ascnd = (arr[n-1] >= arr[0]);
+/*     ascnd = (arr[n-1] >= arr[0]); */
 
-    while (ju-jl > 1) {
-	jm = (ju+jl) >> 1;
+/*     while (ju-jl > 1) { */
+/* 	jm = (ju+jl) >> 1; */
 
-	if ((x > arr[jm]) == ascnd)
-	    jl = jm;
-	else
-	    ju = jm;
-    }
+/* 	if ((x > arr[jm]) == ascnd) */
+/* 	    jl = jm; */
+/* 	else */
+/* 	    ju = jm; */
+/*     } */
 
-    if ((x <= arr[0]) == ascnd)
-	return 0;
+/*     if ((x <= arr[0]) == ascnd) */
+/* 	return 0; */
+/*     else */
+/* 	return ju; */
+/* } */
+unsigned long searchsorted(unsigned long n, float *arr, const float *x) {
+  // match by value of by pointer?  might not have a choice if untyped
+  unsigned long ju,jm,jl;
+  int ascnd; 
+  jl = 0;
+  ju = n;
+  ascnd = ( arr[n-1] >= arr[0] );
+  while (ju-jl > 1) {
+    jm = (ju+jl) >> 1;
+    if ((*x > arr[jm]) == ascnd)
+      jl = jm;
     else
-	return ju;
+      ju = jm;
+  }
+
+  if ((*x <= arr[0]) == ascnd)
+    return 0;
+  else
+    return ju;
 }
 
-template <class T>
-__device__ void
-insert(unsigned long n, T *arr, unsigned long i, const T &x)
+/* template <class T> */
+/* __device__ void */
+/* insert(unsigned long n, T *arr, unsigned long i, const T &x) */
+/* { */
+/*     unsigned long j; */
+/*     for (j=n-1; j > i; j--) */
+/* 	arr[j] = arr[j-1]; */
+/*     arr[i] = x; */
+/* } */
+void insert(unsigned long n, void *arr, unsigned long i, const void *x, size_t elemsize)
 {
-    unsigned long j;
-    for (j=n-1; j > i; j--)
-	arr[j] = arr[j-1];
-    arr[i] = x;
+  unsigned long j;
+  for (j=n-1; j > i; j--) {
+    memcpy( arr+j, arr+j-1, elemsize );
+  }
+  memcpy( arr+i, x, elemsize );
 }
 
-template <class T>
-__device__ void
-add_sorted(unsigned long n, T *arr, const T &x)
-{
-    unsigned long i = searchsorted(n, arr, x);
+/* template <class T> */
+/* __device__ void */
+/* add_sorted(unsigned long n, T *arr, const T &x) */
+/* { */
+/*     unsigned long i = searchsorted(n, arr, x); */
 
-    if (i < n)
-	insert(n, arr, i, x);
+/*     if (i < n) */
+/* 	insert(n, arr, i, x); */
+/* } */
+void add_sorted(unsigned long n, float *arr, const float *x)
+{
+  unsigned long i = searchsorted(n, arr, x);
+
+  if (i < n)
+    insert(n, arr, i, x, sizeof(float));
 }

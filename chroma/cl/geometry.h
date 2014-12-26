@@ -7,10 +7,10 @@
 // Declarations
 
 float3 to_float3(const uint3 *a);
-uint4 get_packed_node(Geometry *geometry, const unsigned int *i);
-void put_packed_node(Geometry *geometry, const unsigned int *i, const uint4 *node);
-Node get_node(Geometry *geometry, const unsigned int *i);
-Triangle get_triangle(Geometry *geometry, const unsigned int *i);
+uint4 get_packed_node(__global Geometry *geometry, const unsigned int i);
+void put_packed_node(__global Geometry *geometry, const unsigned int i, const uint4 *node);
+Node get_node(__global Geometry *geometry, const unsigned int i);
+Triangle get_triangle(__global Geometry *geometry, const unsigned int i);
 float interp_material_property(Material *m, const float *x, const float *fp);
 float interp_surface_property(Surface *m, const float *x, const float *fp);
 
@@ -21,23 +21,23 @@ float3 to_float3(const uint3 *a)
   return make_float3((*a).x, (*a).y, (*a).z);
 }
 
-uint4 get_packed_node(Geometry *geometry, const unsigned int *i)
+uint4 get_packed_node(__global Geometry *geometry, const unsigned int i)
 {
-  if (*i < (unsigned int)geometry->nprimary_nodes)
-	return geometry->primary_nodes[*i];
+  if (i < (unsigned int)geometry->nprimary_nodes)
+	return geometry->primary_nodes[i];
     else
-	return geometry->extra_nodes[*i - geometry->nprimary_nodes];
+	return geometry->extra_nodes[i - geometry->nprimary_nodes];
 }
 
-void put_packed_node(Geometry *geometry, const unsigned int *i, const uint4 *node)
+void put_packed_node(__global Geometry *geometry, const unsigned int i, const uint4 *node)
 {
-  if (*i < (unsigned int)geometry->nprimary_nodes)
-	geometry->primary_nodes[*i] = *node;
+  if (i < (unsigned int)geometry->nprimary_nodes)
+	geometry->primary_nodes[i] = *node;
     else
-        geometry->extra_nodes[*i - geometry->nprimary_nodes] = *node;
+        geometry->extra_nodes[i - geometry->nprimary_nodes] = *node;
 }
 
-Node get_node(Geometry *geometry, const unsigned int *i)
+Node get_node(__global Geometry *geometry, const unsigned int i)
 {
     uint4 node = get_packed_node(geometry, i); 
 	
@@ -55,9 +55,9 @@ Node get_node(Geometry *geometry, const unsigned int *i)
     return node_struct;
 }
 
-Triangle get_triangle(Geometry *geometry, const unsigned int *i)
+Triangle get_triangle(__global Geometry *geometry, const unsigned int i)
 {
-    uint3 triangle_data = geometry->triangles[*i];
+    uint3 triangle_data = geometry->triangles[i];
 
     Triangle triangle;
     triangle.v0 = geometry->vertices[triangle_data.x];
