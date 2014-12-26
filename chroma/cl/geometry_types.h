@@ -1,7 +1,11 @@
 #ifndef __GEOMETRY_TYPES_H__
 #define __GEOMETRY_TYPES_H__
 
-struct Material
+
+unsigned int AvoidWarningThatCausesGDBGrief(void);
+
+
+typedef struct Material
 {
     float *refractive_index;
     float *absorption_length;
@@ -11,11 +15,11 @@ struct Material
     unsigned int n;
     float step;
     float wavelength0;
-};
+} Material;
 
 enum { SURFACE_DEFAULT, SURFACE_COMPLEX, SURFACE_WLS };
 
-struct Surface
+typedef struct Surface
 {
     float *detect;
     float *absorb;
@@ -32,32 +36,32 @@ struct Surface
     float step;
     float wavelength0;
     float thickness;
-};
+} Surface;
 
-struct Triangle
+typedef struct Triangle
 {
     float3 v0, v1, v2;
-};
+} Triangle;
 
 enum { INTERNAL_NODE, LEAF_NODE, PADDING_NODE };
-const unsigned int CHILD_BITS = 28;
-const unsigned int NCHILD_MASK = (0xFFFFu << CHILD_BITS);
+__constant const unsigned int CHILD_BITS = 28;
+__constant const unsigned int NCHILD_MASK = (0xFFFFu << CHILD_BITS);
 
 unsigned int AvoidWarningThatCausesGDBGrief()
 {
-   return NCHILD_MASK ;
+   return NCHILD_MASK;
 }
 
 
-struct Node
+typedef struct Node
 {
     float3 lower;
     float3 upper;
     unsigned int child;
     unsigned int nchild;
-};
+} Node;
 
-struct Geometry
+typedef struct Geometry
 {
     float3 *vertices;
     uint3 *triangles;
@@ -70,7 +74,7 @@ struct Geometry
     float3 world_origin;
     float world_scale;
     int nprimary_nodes;
-};
+} Geometry;
 
 #endif
 

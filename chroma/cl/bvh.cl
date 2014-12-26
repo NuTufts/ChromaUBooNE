@@ -1,37 +1,37 @@
 //-*-c++-*-
-#include <cuda.h>
 
 #include "geometry_types.h"
 #include "geometry.h"
-#include "linalg.h"
+//#include "linalg.h"
 #include "physical_constants.h"
 #include "sorting.h"
 
-// Vector utility functions
-float3 fminf(const float3 &a, const float3 &b)
-{
-  return make_float3(fminf(a.x, b.x), fminf(a.y, b.y), fminf(a.z, b.z));
-}
+// OpenCL has native versions of these functions
+// // Vector utility functions
+// float3 fminf(const float3 &a, const float3 &b)
+// {
+//   return make_float3(fminf(a.x, b.x), fminf(a.y, b.y), fminf(a.z, b.z));
+// }
 
-float3 fmaxf(const float3 &a, const float3 &b)
-{
-  return make_float3(fmaxf(a.x, b.x), fmaxf(a.y, b.y), fmaxf(a.z, b.z));
-}
+// float3 fmaxf(const float3 &a, const float3 &b)
+// {
+//   return make_float3(fmaxf(a.x, b.x), fmaxf(a.y, b.y), fmaxf(a.z, b.z));
+// }
 
-uint3 min(const uint3 &a, const uint3 &b)
-{
-  return make_uint3(min(a.x,b.x), min(a.y,b.y), min(a.z,b.z));
-}
+// uint3 min(const uint3 &a, const uint3 &b)
+// {
+//   return make_uint3(min(a.x,b.x), min(a.y,b.y), min(a.z,b.z));
+// }
 
-uint3 max(const uint3 &a, const uint3 &b)
-{
-  return make_uint3(max(a.x,b.x), max(a.y,b.y), max(a.z,b.z));
-}
+// uint3 max(const uint3 &a, const uint3 &b)
+// {
+//   return make_uint3(max(a.x,b.x), max(a.y,b.y), max(a.z,b.z));
+// }
 
-uint3 operator+ (const uint3 &a, const unsigned int &b)
-{
-  return make_uint3(a.x + b, a.y + b, a.z + b);
-}
+// uint3 operator+ (const uint3 &a, const unsigned int &b)
+// {
+//   return make_uint3(a.x + b, a.y + b, a.z + b);
+// }
 
 // spread out the first 16 bits in x to occupy every 3rd slot in the return value
 unsigned long long spread3_16(unsigned int input)

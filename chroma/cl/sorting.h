@@ -1,3 +1,7 @@
+// No templates for OpenCL which uses C99.
+// This will become a hot mess.
+// Though, if this is pointer manipulation we can go with char* ...
+
 template <class T>
 __device__ void
 swap(T &a, T &b)
