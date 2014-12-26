@@ -5,3 +5,4 @@
 #from chroma.gpu.daq import *
 #from chroma.gpu.pdf import *
 #from chroma.gpu.detector import *
+#from chroma.gpu.gpufuncs import *

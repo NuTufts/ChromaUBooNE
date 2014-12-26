@@ -4,16 +4,16 @@ os.environ["PYOPENCL_CTX"] ='1'
 import numpy as np
 import pyopencl as cl
 import pyopencl.array as clarray
-import chroma.gpu.cltools as cltools
+import chroma.gpu.tools as tools
 
 float3 = clarray.vec.float3
 print "float3 type: ",float3
-ctx = cl.create_some_context()
+ctx = tools.get_context()
 queue = cl.CommandQueue(ctx)
 dev = ctx.get_info( cl.context_info.DEVICES )[0]
 print 'device %s' % dev.get_info( cl.device_info.NAME )
 
-mod = cltools.get_cl_module( 'linalg_test.cl', ctx, include_source_directory=False )
+mod = tools.get_module( 'linalg_test.cl', ctx, include_source_directory=False )
 
 size = {'block': (256,), 'grid': (1,)}
 a_np = np.zeros((size['block'][0],3), dtype=np.float32)

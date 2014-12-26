@@ -31,7 +31,6 @@ class Api(ApiSingleton):
     opencl = _opencl_t()
     def __init__( self, apipreference=None ):
         super(Api,self).__init__()
-        print "api preference: ",apipreference
         if apipreference!=None and apipreference not in [Api.cuda,Api.opencl]:
             raise ValueError( "invalid prefence for GPU API: ",apipreference )
         try:
@@ -55,6 +54,8 @@ class Api(ApiSingleton):
                 print "Found both APIs. Need preference."
                 raise
             self.using = apipreference
+
+        print "Setting API: ",self.using
 
 def get_gpu_api():
     a = Api()
