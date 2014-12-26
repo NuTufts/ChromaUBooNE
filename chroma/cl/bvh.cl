@@ -6,15 +6,20 @@
 #include "physical_constants.h"
 #include "sorting.h"
 
-unsigned long long spread3_16(unsigned int input);
-unsigned long long spread2_16(unsigned int input);
+unsigned long spread3_16(unsigned int input);
+unsigned long spread2_16(unsigned int input);
 unsigned int quantize(float v, float world_origin, float world_scale);
 uint3 quantize3(float3 v, float3 world_origin, float world_scale);
 uint3 quantize3_cyl(float3 v, float3 world_origin, float world_scale);
 uint3 quantize3_sph(float3 v, float3 world_origin, float world_scale);
 uint4 node_union(const uint4* a, const uint4* b);
-unsigned long long surface_half_area(const uint4 *node);
-unsigned long long ullmin( unsigned long long a, unsigned long long b );
+unsigned long surface_half_area(const uint4 *node);
+unsigned long ullmin( unsigned long a, unsigned long b );
+
+// There is a lot of morton code stuff.
+// OpenCL doesnt support 128 bits.
+// So I change all unsigned long long into unsigned long long -- made it 64-bits
+// Just going to pray it works.
 
 // OpenCL has native versions of these functions
 // // Vector utility functions
@@ -43,7 +48,7 @@ unsigned long long ullmin( unsigned long long a, unsigned long long b );
 //   return make_uint3(a.x + b, a.y + b, a.z + b);
 // }
 
-unsigned long long ullmin( unsigned long long a, unsigned long long b ) {
+unsigned long ullmin( unsigned long a, unsigned long b ) {
   if (a<b) 
     return a;
   else
@@ -51,10 +56,10 @@ unsigned long long ullmin( unsigned long long a, unsigned long long b ) {
 }
 
 // spread out the first 16 bits in x to occupy every 3rd slot in the return value
-unsigned long long spread3_16(unsigned int input)
+unsigned long spread3_16(unsigned int input)
 {
   // method from http://stackoverflow.com/a/4838734
-  unsigned long long x = input;
+  unsigned long x = input;
   x = (x | (x << 16)) & 0x00000000FF0000FFul;
   x = (x | (x << 8)) & 0x000000F00F00F00Ful;
   x = (x | (x << 4)) & 0x00000C30C30C30C3ul;
@@ -63,9 +68,9 @@ unsigned long long spread3_16(unsigned int input)
   return x;
 }
 
-unsigned long long spread2_16(unsigned int input)
+unsigned long spread2_16(unsigned int input)
 {
-  unsigned long long x = input;
+  unsigned long x = input;
   x = (x | (x << 16)) & 0x000000ff00ff00fful;
   x = (x | (x <<  8)) & 0x00000f0f0f0f0f0ful;
   x = (x | (x <<  4)) & 0x0000333333333333ul;
@@ -132,13 +137,13 @@ uint4 node_union(const uint4 *a, const uint4 *b)
 
 
 
-unsigned long long surface_half_area(const uint4 *node)
+unsigned long surface_half_area(const uint4 *node)
 {
-  unsigned long long x = ((*node).x >> 16) - ((*node).x & 0xFFFF);
-  unsigned long long y = ((*node).y >> 16) - ((*node).y & 0xFFFF);
-  unsigned long long z = ((*node).z >> 16) - ((*node).z & 0xFFFF);
+  unsigned long x = ((*node).x >> 16) - ((*node).x & 0xFFFF);
+  unsigned long y = ((*node).y >> 16) - ((*node).y & 0xFFFF);
+  unsigned long z = ((*node).z >> 16) - ((*node).z & 0xFFFF);
 
-  unsigned long long surf = x*y + y*z + z*x;
+  unsigned long surf = x*y + y*z + z*x;
   return surf;
 }
 
@@ -168,7 +173,7 @@ make_leaves(unsigned int first_triangle,
 	    unsigned int ntriangles, 
 	    __global uint3 *triangles, __global float3 *vertices,
 	    float3 world_origin, float world_scale,
-	    __global uint4 *leaf_nodes, __global unsigned long long *morton_codes)
+	    __global uint4 *leaf_nodes, __global unsigned long *morton_codes)
   
 {
   unsigned int thread_id = get_local_size(0)*get_group_id(0) + get_local_id(0); // unsigned int thread_id = blockDim.x * blockIdx.x + threadIdx.x;
@@ -205,7 +210,7 @@ make_leaves(unsigned int first_triangle,
   uint3 q_centroid = quantize3(centroid, world_origin, world_scale);
   
   // Compute Morton code from quantized centroid
-  unsigned long long morton = 
+  unsigned long morton = 
     spread3_16(q_centroid.x) 
     | (spread3_16(q_centroid.y) << 1)
     | (spread3_16(q_centroid.z) << 2);
@@ -421,7 +426,7 @@ __kernel void distance_to_prev(unsigned int first_node,
 
 __kernel void pair_area(unsigned int first_node,
 			unsigned int threads_this_round,
-			__global uint4 *node, __global unsigned long long *area)
+			__global uint4 *node, __global unsigned long *area)
 {
   unsigned int thread_id = get_local_size(0)*get_group_id(0) + get_local_id(0); // unsigned int thread_id = blockDim.x * blockIdx.x + threadIdx.x;
   if (thread_id >= threads_this_round)
@@ -467,12 +472,12 @@ __kernel void min_distance_to( unsigned int first_node, unsigned int threads_thi
 			       unsigned int target_index,
 			       __global uint4 *node,
 			       unsigned int block_offset,
-			       __global unsigned long long *min_area_block,
+			       __global unsigned long *min_area_block,
 			       __global unsigned int *min_index_block,
 			       __global unsigned int *flag)
 {
-  __local unsigned long long min_area[128];
-  __local unsigned long long adjacent_area;
+  __local unsigned long min_area[128];
+  __local unsigned long adjacent_area;
   
   target_index = get_group_id(1); //target_index += blockIdx.y;
   
@@ -494,7 +499,7 @@ __kernel void min_distance_to( unsigned int first_node, unsigned int threads_thi
   if (thread_id >= threads_this_round)
     node_id = target_index;
   
-  unsigned long long area;
+  unsigned long area;
   
   if (node_id == target_index) {
     area = 0xFFFFFFFFFFFFFFFF;

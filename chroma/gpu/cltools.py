@@ -28,7 +28,7 @@ def get_cl_module(name, clcontext, options=None, include_source_directory=True, 
         raise TypeError('`options` must be a tuple.')
 
     if include_source_directory:
-        options += ['-I' + srcdir]
+        options += ['-I',srcdir]
 
     if os.path.exists( name ):
         with open(name) as f:
@@ -47,8 +47,8 @@ def get_cl_module(name, clcontext, options=None, include_source_directory=True, 
         source = template_interpolation( source, template_fill )
         if template_fill[0][0] == 'debug' and template_fill[0][1] == 1:
             print source
-         
-
+            
+    print options
     return cl.Program( clcontext, source ).build(options)
 
 @pytools.memoize
