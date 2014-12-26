@@ -3,11 +3,16 @@ import logging
 log = logging.getLogger(__name__)
 import numpy as np
 import pytools
-import pycuda.tools
-from pycuda import characterize
-import pycuda.driver as cuda
-import pycuda.compiler
-from pycuda import gpuarray as ga
+import chroma.api as gpuapi
+
+if gpuapi.is_gpu_api_cuda():
+    import pycuda.tools
+    from pycuda import characterize
+    import pycuda.driver as cuda
+    import pycuda.compiler
+    from pycuda import gpuarray as ga
+elif gpuapi.is_gpu_api_opencl():
+    import pyopencl as cl
 
 from chroma.cuda import srcdir
 

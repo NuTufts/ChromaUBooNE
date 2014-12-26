@@ -1,5 +1,11 @@
 #from enum import Enum
 
+# This module provides functions to determine what GPU API we are using.
+# The Api class stores the choice of Api. It is defined to be a singleton
+# so the determination is done only once.
+# We have not implemented a way to change the initial choice.  That would seem to open
+#   a giant can of worms.
+
 class _ApiSingleton(type):
     """Define how the Api singleton gets created. Only allows an instance to be created once."""
     _instances = {}
@@ -10,11 +16,6 @@ class _ApiSingleton(type):
 
 class ApiSingleton(_ApiSingleton('ApiSingletonMeta',(object,),{})): pass
     
-
-#class Apichoices(Enum):
-#    cuda = 0
-#    opencl = 1
-
 class _cuda_t:
     def __str__(self):
         return "cuda"
@@ -23,10 +24,9 @@ class _opencl_t:
         return "opencl"
 
 class Api(ApiSingleton):
-    # we can only create this class once.
-    # when created, it determines with we are going to use opencl or cuda. user can specify preference if both are found
-    #cuda = Apichoices.cuda
-    #opencl = Apichoices.opencl
+    # we can only create this class once. (the metaclass takes care of that)
+    # when created, it determines which API we are going to use: opencl or cuda. user can specify preference if both are found
+    #pass in Api.cuda or Api.opencl
     cuda = _cuda_t()
     opencl = _opencl_t()
     def __init__( self, apipreference=None ):
