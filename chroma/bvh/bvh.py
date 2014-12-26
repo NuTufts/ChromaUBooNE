@@ -1,7 +1,11 @@
 '''chroma.bvh: Bounding Volume Hierarchy generation and manipulation.'''
 
 import numpy as np
-from pycuda.gpuarray import vec
+import chroma.api as gpuapi
+if gpuapi.is_gpu_api_cuda():
+    from pycuda.gpuarray import vec
+if gpuapi.is_gpu_api_opencl():
+    from pyopencl.array import vec
 
 uint4 = vec.uint4 # pylint: disable-msg=C0103,E1101
 
