@@ -2,61 +2,122 @@
 // This will become a hot mess.
 // Though, if this is pointer manipulation we can go with char* ...
 
-template <class T>
-__device__ void
-swap(T &a, T &b)
-{
-    T tmp = a;
-    a = b;
-    b = tmp;
+
+void swap( void* a, void* b, size_t size );
+void reverse(int n, void* array, size_t elemsize );
+void piksrt( int n, float* arrf );
+void piksrt2( int n, float* arrf, uint4* arrvec );
+
+/* template <class T> */
+/* __device__ void */
+/* swap(T &a, T &b) */
+/* { */
+/*     T tmp = a; */
+/*     a = b; */
+/*     b = tmp; */
+/* } */
+void swap( void* a, void* b, size_t size ) {
+  char temp[size]; // allocates temp memory for element value
+  memcpy(temp,b,size); // below copying referenced value, not the pointer!
+  memcpy(b,a,size);   
+  memcpy(a,temp,size);
 }
 
-template <class T>
-__device__ void
-reverse(int n, T *a)
-{
-    for (int i=0; i < n/2; i++)
-	swap(a[i],a[n-1-i]);
+
+/* template <class T> */
+/* __device__ void */
+/* reverse(int n, T *a) */
+/* { */
+/*     for (int i=0; i < n/2; i++) */
+/* 	swap(a[i],a[n-1-i]); */
+/* } */
+void reverse(int n, void* array, size_t elemsize ) {
+  for (int i=0; i<n/2; i++) {
+    char* pelem1 = array + i;         // pointer to element 1 of array
+    char* pelem2 = array + n - 1 -i;  // pointer to element 2 of array
+    swap( pelem1, pelem2, elemsize ); // pass pointers to elements and size of object
+  }
 }
 
-template <class T>
-__device__ void
-piksrt(int n, T *arr)
-{
-    int i,j;
-    T a;
+/* template <class T> */
+/* __device__ void */
+/* piksrt(int n, T *arr) */
+/* { */
+/*     int i,j; */
+/*     T a; */
 
-    for (j=1; j < n; j++) {
-	a = arr[j];
-	i = j-1;
-	while (i >= 0 && arr[i] > a) {
-	    arr[i+1] = arr[i];
-	    i--;
-	}
-	arr[i+1] = a;
+/*     for (j=1; j < n; j++) { */
+/* 	a = arr[j]; */
+/* 	i = j-1; */
+/* 	while (i >= 0 && arr[i] > a) { */
+/* 	    arr[i+1] = arr[i]; */
+/* 	    i--; */
+/* 	} */
+/* 	arr[i+1] = a; */
+/*     } */
+/* } */
+// no way to compare values. when don't know type. we have to explicitly create function!
+void piksrt( int n, float* arrf ) {
+  // example inputs
+  //int distance_table_len = 0;
+  //float distance_table[1000];
+
+  int i, j;
+  float atemp;
+
+  for (j=1; j<n; j++) {
+    atemp = *(arrf+j);
+    i = j-1;
+    while (i>=0 && *(arrf+i)>atemp) {
+      *(arrf+i+1) = atemp;
+      i--;
     }
+    *(arrf+i+1) = atemp;
+  }
 }
 
-template <class T, class U>
-__device__ void
-piksrt2(int n, T *arr, U *brr)
-{
-    int i,j;
-    T a;
-    U b;
+/* template <class T, class U> */
+/* __device__ void */
+/* piksrt2(int n, T *arr, U *brr) */
+/* { */
+/*     int i,j; */
+/*     T a; */
+/*     U b; */
 
-    for (j=1; j < n; j++) {
-	a = arr[j];
-	b = brr[j];
-	i = j-1;
-	while (i >= 0 && arr[i] > a) {
-	    arr[i+1] = arr[i];
-	    brr[i+1] = brr[i];
-	    i--;
-	}
-	arr[i+1] = a;
-	brr[i+1] = b;
+/*     for (j=1; j < n; j++) { */
+/* 	a = arr[j]; */
+/* 	b = brr[j]; */
+/* 	i = j-1; */
+/* 	while (i >= 0 && arr[i] > a) { */
+/* 	    arr[i+1] = arr[i]; */
+/* 	    brr[i+1] = brr[i]; */
+/* 	    i--; */
+/* 	} */
+/* 	arr[i+1] = a; */
+/* 	brr[i+1] = b; */
+/*     } */
+/* } */
+void piksrt2( int n, float* arrf, uint4* arrvec ) {
+  // example arrays
+  //float distance[MAX_CHILD]; 
+  //uint4 children[MAX_CHILD]; 
+  int i, j;
+  float atemp;
+  uint4 btemp;
+
+  for (j=1; j<n; j++) {
+    atemp = *(arrf+j);
+    btemp = *(arrvec+j);
+    i = j-1;
+    while (i>=0 && *(arrf+i)>atemp) {
+      *(arrf+i+1) = atemp;
+      *(arrvec+i+1) = btemp;
+      i--;
     }
+    *(arrf+i+1) = atemp;
+    *(arrvec+i+1) = btemp;
+  }
+  
 }
 
 /* Returns the index in `arr` where `x` should be inserted in order to
