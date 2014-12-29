@@ -22,9 +22,10 @@ def make_simple_bvh(mesh, degree):
         parent = merge_nodes(top, degree=degree, max_ratio=2)
         layers = [parent, top] + layers[1:]
 
+    raise RuntimeError('stopping for debug')
     # How many nodes total?
     nodes, layer_bounds = concatenate_layers(layers)
-
+    
     return BVH(world_coords, nodes, layer_bounds[:-1])
 
 

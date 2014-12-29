@@ -16,9 +16,9 @@ def build_simple_bvh(degree):
     mesh = chroma.models.companioncube()
     bvh = make_simple_bvh(mesh, degree)
 
-    #nodes = bvh.nodes
-    #layer_bounds = np.append(bvh.layer_offsets, len(nodes))
-    #world_coords = bvh.world_coords
+    nodes = bvh.nodes
+    layer_bounds = np.append(bvh.layer_offsets, len(nodes))
+    world_coords = bvh.world_coords
 
     #for i, (layer_start, layer_end) in enumerate(zip(layer_bounds[:-1], 
     #                                                 layer_bounds[1:])):

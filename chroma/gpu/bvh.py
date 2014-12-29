@@ -149,30 +149,66 @@ def merge_nodes_detailed(nodes, first_child, nchild):
     '''Merges nodes into len(first_child) parent nodes, using
     the provided arrays to determine the index of the first
     child of each parent, and how many children there are.'''
-    bvh_module = get_cu_module('bvh.cu', options=cuda_options,
-                               include_source_directory=True)
+    nthreads_per_block = 256
+    context = None
+    queue = None
+    if gpuapi.is_gpu_api_opencl():
+        context = cltools.get_last_context()
+        print context
+        queue = cl.CommandQueue( context )
+
+    # Load GPU functions
+    if gpuapi.is_gpu_api_cuda():
+        bvh_module = get_module('bvh.cu', options=api_options, include_source_directory=True)
+    elif gpuapi.is_gpu_api_opencl():
+        # don't like the last context method. trouble. trouble.
+        bvh_module = get_module('bvh.cl', context, options=api_options, include_source_directory=True)
+    else:
+        raise RuntimeError('API is neither CUDA nor OpenCL?!')
     bvh_funcs = GPUFuncs(bvh_module)
 
-    gpu_nodes = ga.to_gpu(nodes)
-    gpu_first_child = ga.to_gpu(first_child.astype(np.int32))
-    gpu_nchild = ga.to_gpu(nchild.astype(np.int32))
+    # Load Memory
+    if gpuapi.is_gpu_api_cuda():
+        gpu_nodes = ga.to_gpu(nodes)
+        gpu_first_child = ga.to_gpu(first_child.astype(np.int32))
+        gpu_nchild = ga.to_gpu(nchild.astype(np.int32))
 
-    nparent = len(first_child)
-    gpu_parent_nodes = ga.empty(shape=nparent, dtype=ga.vec.uint4)
+        nparent = len(first_child)
+        gpu_parent_nodes = ga.empty(shape=nparent, dtype=ga.vec.uint4)
+    elif gpuapi.is_gpu_api_opencl():
+        gpu_nodes = ga.to_device(queue, nodes)
+        gpu_first_child = ga.to_device(queue, first_child.astype(np.int32))
+        gpu_nchild = ga.to_device(quue, nchild.astype(np.int32))
+        nparent = len(first_child)
+        parent_nodes_np = np.zeros(shape=nparent, dtype=ga.vec.uint4)
+        gpu_parent_nodes = ga.to_device( queue, parent_nodes_np )
+    else:
+        raise RuntimeError('API is neither CUDA nor OpenCL?!')
 
-    nthreads_per_block = 256
+    # Run Kernel
     for first_index, elements_this_iter, nblocks_this_iter in \
             chunk_iterator(nparent, nthreads_per_block, max_blocks=10000):
+        if gpuapi.is_gpu_api_cuda():
+            bvh_funcs.make_parents_detailed(np.uint32(first_index),
+                                            np.uint32(elements_this_iter),
+                                            gpu_nodes,
+                                            gpu_parent_nodes,
+                                            gpu_first_child,
+                                            gpu_nchild,
+                                            block=(nthreads_per_block,1,1),
+                                            grid=(nblocks_this_iter,1))
+        elif gpuapi.is_gpu_api_opencl():
+            bvh_funcs.make_parents_detailed( queue, (nthreads_per_block,1,1), None,
+                                             np.uint32(first_index),
+                                             np.uint32(elements_this_iter),
+                                             gpu_nodes.data,
+                                             gpu_parent_nodes.data,
+                                             gpu_first_child.data,
+                                             gpu_nchild.data )
+        else:
+            raise RuntimeError('API is neither CUDA nor OpenCL?!')
 
-        bvh_funcs.make_parents_detailed(np.uint32(first_index),
-                                        np.uint32(elements_this_iter),
-                                        gpu_nodes,
-                                        gpu_parent_nodes,
-                                        gpu_first_child,
-                                        gpu_nchild,
-                                        block=(nthreads_per_block,1,1),
-                                        grid=(nblocks_this_iter,1))
-
+    print gpu_parent_nodes.get()[0:10]
     return gpu_parent_nodes.get()
 
 def collapse_chains(nodes, layer_bounds):
@@ -211,10 +247,25 @@ def area_sort_nodes(gpu_geometry, layer_bounds):
 
 
 def merge_nodes(nodes, degree, max_ratio=None):
-    bvh_module = get_cu_module('bvh.cu', options=cuda_options,
-                               include_source_directory=True)
+    nthreads_per_block = 256
+    context = None
+    queue = None
+    if gpuapi.is_gpu_api_opencl():
+        context = cltools.get_last_context()
+        print context
+        queue = cl.CommandQueue( context )
+
+    # Load GPU functions
+    if gpuapi.is_gpu_api_cuda():
+        bvh_module = get_module('bvh.cu', options=api_options, include_source_directory=True)
+    elif gpuapi.is_gpu_api_opencl():
+        # don't like the last context method. trouble. trouble.
+        bvh_module = get_module('bvh.cl', context, options=api_options, include_source_directory=True)
+    else:
+        raise RuntimeError('API is neither CUDA nor OpenCL?!')
     bvh_funcs = GPUFuncs(bvh_module)
-    
+
+    # determine number of parents
     nparent = len(nodes) / degree
     if len(nodes) % degree != 0:
         nparent += 1
@@ -222,21 +273,38 @@ def merge_nodes(nodes, degree, max_ratio=None):
     if nparent == 1:
         nparent_pad = nparent
     else:
-        nparent_pad = round_up_to_multiple(nparent, 1)#degree)
-    gpu_parent_nodes = ga.zeros(shape=nparent_pad, dtype=ga.vec.uint4)
+        nparent_pad = round_up_to_multiple(nparent, 1) #degree
 
-    nthreads_per_block = 256
-    for first_index, elements_this_iter, nblocks_this_iter in \
-            chunk_iterator(nparent, nthreads_per_block, max_blocks=10000):
-        bvh_funcs.make_parents(np.uint32(first_index),
-                               np.uint32(elements_this_iter),
-                               np.uint32(degree),
-                               gpu_parent_nodes,
-                               cuda.In(nodes),
-                               np.uint32(0),
-                               np.uint32(len(nodes)),
-                               block=(nthreads_per_block,1,1),
-                               grid=(nblocks_this_iter,1))
+    # allocate memory
+    if gpuapi.is_gpu_api_cuda():
+        gpu_parent_nodes = ga.zeros(shape=nparent_pad, dtype=ga.vec.uint4)
+    elif gpuapi.is_gpu_api_opencl():
+        parent_nodes_np = np.zeros(shape=nparent, dtype=ga.vec.uint4)
+        gpu_parent_nodes = ga.to_device( queue, parent_nodes_np )
+        gpu_nodes = ga.to_device(queue,nodes)
+
+    # run kernel
+        for first_index, elements_this_iter, nblocks_this_iter in \
+                chunk_iterator(nparent, nthreads_per_block, max_blocks=10000):
+            if gpuapi.is_gpu_api_cuda():
+                bvh_funcs.make_parents(np.uint32(first_index),
+                                       np.uint32(elements_this_iter),
+                                       np.uint32(degree),
+                                       gpu_parent_nodes,
+                                       cuda.In(nodes),
+                                       np.uint32(0),
+                                       np.uint32(len(nodes)),
+                                       block=(nthreads_per_block,1,1),
+                                       grid=(nblocks_this_iter,1))
+            elif gpuapi.is_gpu_api_opencl():
+                bvh_funcs.make_parents(queue, (nthreads_per_block,1,1), None,
+                                       np.uint32(first_index),
+                                       np.uint32(elements_this_iter),
+                                       np.uint32(degree),
+                                       gpu_parent_nodes.data,
+                                       gpu_nodes.data,
+                                       np.uint32(0),
+                                       np.uint32(len(nodes)))
 
     parent_nodes = gpu_parent_nodes.get()
 
@@ -298,6 +366,8 @@ def merge_nodes(nodes, degree, max_ratio=None):
             # total number of nodes at this level by 1.
             parent_nodes = new_parent_nodes
 
+    print "Final Parent Nodes"
+    print parent_nodes
     return parent_nodes
 
 def concatenate_layers(layers):
