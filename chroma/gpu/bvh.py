@@ -110,20 +110,21 @@ def create_leaf_nodes(mesh, morton_bits=16, round_to_multiple=1):
         # now create a buffer object on the device and push data to it
         triangles_dev = ga.to_device( queue, triangles )
         vertices_dev = ga.to_device( queue, vertices )
-        print triangles[0:10]
-        print vertices[0:10]
+        #print triangles[0:10]
+        #print vertices[0:10]
 
         # Call GPU to compute nodes
         nodes = ga.zeros(queue, shape=round_up_to_multiple(len(triangles), round_to_multiple), dtype=ga.vec.uint4)
         morton_codes = ga.empty(queue, shape=len(triangles), dtype=np.uint64)
 
         # Convert world coords to GPU-friendly types
-        world_origin = np.empty(len(world_origin_np.reshape(1,3)),dtype=ga.vec.float3)
-        copy_to_float3( world_origin_np.reshape(1,3), world_origin )
+        world_origin = np.empty(1,dtype=ga.vec.float3)
+        world_origin['x'] = world_origin_np[0]
+        world_origin['y'] = world_origin_np[1]
+        world_origin['z'] = world_origin_np[2]
         world_scale = np.float32(world_scale)
-        world_origin_dev = ga.to_device(queue,world_origin)
-        print world_origin
-
+        #print world_origin
+        
         # generate morton codes on GPU
         for first_index, elements_this_iter, nblocks_this_iter in \
                 chunk_iterator(len(triangles), nthreads_per_block,
@@ -132,7 +133,7 @@ def create_leaf_nodes(mesh, morton_bits=16, round_to_multiple=1):
                                    np.uint32(first_index),
                                    np.uint32(elements_this_iter),
                                    triangles_dev.data, vertices_dev.data,
-                                   world_origin_dev.data, world_scale,
+                                   world_origin, world_scale,
                                    nodes.data, morton_codes.data )
 
         morton_codes_host = morton_codes.get() >> (16 - morton_bits)
