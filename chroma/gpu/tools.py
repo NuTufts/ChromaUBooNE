@@ -92,11 +92,28 @@ def to_float3(arr):
         arr = np.asarray(arr, order='c')
     return arr.astype(np.float32).view(ga.vec.float3)[:,0]
 
+def copy_to_float3( arr, f3arr ):
+    if not arr.flags['C_CONTIGUOUS']:
+        arr = np.asarray(arr, order='c')
+    print arr.shape
+    f3arr['x'] = arr.astype(np.float32)[:,0]
+    f3arr['y'] = arr.astype(np.float32)[:,1]
+    f3arr['z'] = arr.astype(np.float32)[:,2]
+
 def to_uint3(arr):
     "Returns a vec.uint3 array from an (N,3) array."
     if not arr.flags['C_CONTIGUOUS']:
         arr = np.asarray(arr, order='c')
     return arr.astype(np.uint32).view(ga.vec.uint3)[:,0]
+
+def copy_to_uint3( arr, ui3arr ):
+    if not arr.flags['C_CONTIGUOUS']:
+        arr = np.asarray(arr, order='c')
+
+    ui3arr['x'] = arr.astype(np.uint32)[:,0]
+    ui3arr['y'] = arr.astype(np.uint32)[:,1]
+    ui3arr['z'] = arr.astype(np.uint32)[:,2]
+
 
 # ==========================================
 # runtime utilities
@@ -192,9 +209,12 @@ def mapped_alloc(pagelocked_alloc_func, shape, dtype, write_combined):
     array = pagelocked_alloc_func(shape=shape, dtype=dtype, mem_flags=flags)
     return array
 
-def mapped_empty(shape, dtype, write_combined=False):
+def mapped_empty(shape, dtype, write_combined=False, clcontext=None):
     '''See mapped_alloc()'''
-    return mapped_alloc(cuda.pagelocked_empty, shape, dtype, write_combined)
+    if gpuapi.is_gpu_api_cuda():
+        return cutools.mapped_empty(cuda.pagelocked_empty, shape, dtype, write_combined)
+    elif gpuapi.is_gpu_api_opencl():
+        return cltools.mapped_empty( clcontext, shape, dtype, write_combined )
 
 def mapped_empty_like(other, write_combined=False):
     '''See mapped_alloc()'''

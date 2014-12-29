@@ -1,15 +1,16 @@
 import numpy as np
 import chroma.api as gpuapi
 from chroma.gpu.tools import get_module, api_options, \
-    chunk_iterator, to_uint3, to_float3 
+    chunk_iterator, to_uint3, to_float3, mapped_empty, copy_to_uint3, copy_to_float3
 from chroma.gpu.gpufuncs import GPUFuncs
 if gpuapi.is_gpu_api_cuda():
     import pycuda.driver as cuda
     from pycuda import gpuarray as ga
     from pycuda import characterize
-    from chroma.gpu.cutools import mapped_empty, Mapped
+    from chroma.gpu.cutools import Mapped
 elif gpuapi.is_gpu_api_opencl():
     import pyopencl as cl
+    import pyopencl.array as ga
     import chroma.gpu.cltools as cltools
 
 from chroma.bvh.bvh import WorldCoords, node_areas, NCHILD_MASK, CHILD_BITS
@@ -42,6 +43,12 @@ def create_leaf_nodes(mesh, morton_bits=16, round_to_multiple=1):
         Must be <= 16 bits.
     '''
     # it would be nice not to duplicate code, make functions transparent...
+    context = None
+    queue = None
+    if gpuapi.is_gpu_api_opencl():
+        context = cltools.get_last_context()
+        print context
+        queue = cl.CommandQueue( context )
 
     # Load GPU functions
     if gpuapi.is_gpu_api_cuda():
@@ -52,43 +59,82 @@ def create_leaf_nodes(mesh, morton_bits=16, round_to_multiple=1):
     bvh_funcs = GPUFuncs(bvh_module)
 
     # compute world coordinates
-    world_origin = mesh.vertices.min(axis=0)
-    world_scale = np.max((mesh.vertices.max(axis=0) - world_origin)) \
-        / (2**16 - 2)
-    world_coords = WorldCoords(world_origin=world_origin, 
-                               world_scale=world_scale)
+    world_origin_np = mesh.vertices.min(axis=0)
+    world_scale = np.max((mesh.vertices.max(axis=0) - world_origin_np)) / (2**16 - 2)
+    world_coords = WorldCoords(world_origin=world_origin_np, world_scale=world_scale)
+                               
 
-    # Put triangles and vertices in mapped host memory
-    triangles = mapped_empty(shape=len(mesh.triangles), dtype=ga.vec.uint3,
-                             write_combined=True)
-    triangles[:] = to_uint3(mesh.triangles)
-    vertices = mapped_empty(shape=len(mesh.vertices), dtype=ga.vec.float3,
-                            write_combined=True)
-    vertices[:] = to_float3(mesh.vertices)
-
-   # Call GPU to compute nodes
-    nodes = ga.zeros(shape=round_up_to_multiple(len(triangles), 
-                                                round_to_multiple),
-                     dtype=ga.vec.uint4)
-    morton_codes = ga.empty(shape=len(triangles), dtype=np.uint64)
-
-   # Convert world coords to GPU-friendly types
-    world_origin = ga.vec.make_float3(*world_origin)
-    world_scale = np.float32(world_scale)
-    
+    # Put triangles and vertices into host and device memory
+    # unfortunately, opencl and cuda has different methods for managing memory here
+    # we have to write divergent code
     nthreads_per_block = 256
-    for first_index, elements_this_iter, nblocks_this_iter in \
-            chunk_iterator(len(triangles), nthreads_per_block, 
-                           max_blocks=30000):
-        bvh_funcs.make_leaves(np.uint32(first_index),
-                              np.uint32(elements_this_iter),
-                              Mapped(triangles), Mapped(vertices),
-                              world_origin, world_scale,
-                              nodes, morton_codes,
-                              block=(nthreads_per_block,1,1),
-                              grid=(nblocks_this_iter,1))
+    if gpuapi.is_gpu_api_cuda():
+        # here cuda supports a nice feature where we allocate host and device memory that are mapped onto one another.
+        # no explicit requests for transfers here
+        triangles = mapped_empty(shape=len(mesh.triangles), dtype=ga.vec.uint3, write_combined=True)
+        triangles[:] = to_uint3(mesh.triangles)
+        vertices = mapped_empty(shape=len(mesh.vertices), dtype=ga.vec.float3, write_combined=True)
+        vertices[:] = to_float3(mesh.vertices)
 
-    morton_codes_host = morton_codes.get() >> (16 - morton_bits)
+        # Call GPU to compute nodes
+        nodes = ga.zeros(shape=round_up_to_multiple(len(triangles), round_to_multiple), dtype=ga.vec.uint4)
+        morton_codes = ga.empty(shape=len(triangles), dtype=np.uint64)
+
+        # Convert world coords to GPU-friendly types
+        world_origin = ga.vec.make_float3(*world_origin_np)
+        world_scale = np.float32(world_scale)
+
+        # generate morton codes on GPU
+        for first_index, elements_this_iter, nblocks_this_iter in \
+                chunk_iterator(len(triangles), nthreads_per_block, 
+                               max_blocks=30000):
+            bvh_funcs.make_leaves(np.uint32(first_index),
+                                  np.uint32(elements_this_iter),
+                                  Mapped(triangles), Mapped(vertices),
+                                  world_origin, world_scale,
+                                  nodes, morton_codes,
+                                  block=(nthreads_per_block,1,1),
+                                  grid=(nblocks_this_iter,1))
+
+        morton_codes_host = morton_codes.get() >> (16 - morton_bits)
+
+
+    elif gpuapi.is_gpu_api_opencl():
+        # here we need to allocate a buffer on the host and on the device
+        triangles = np.empty( len(mesh.triangles), dtype=ga.vec.uint3 )
+        copy_to_uint3(mesh.triangles, triangles)
+        vertices = np.empty( len(mesh.vertices), dtype=ga.vec.float3 )
+        copy_to_float3(mesh.vertices, vertices)
+        # now create a buffer object on the device and push data to it
+        triangles_dev = ga.to_device( queue, triangles )
+        vertices_dev = ga.to_device( queue, vertices )
+
+        # Call GPU to compute nodes
+        nodes = ga.zeros(queue, shape=round_up_to_multiple(len(triangles), round_to_multiple), dtype=ga.vec.uint4)
+        morton_codes = ga.empty(queue, shape=len(triangles), dtype=np.uint64)
+
+        # Convert world coords to GPU-friendly types
+        world_origin = np.empty(len(world_origin_np.reshape(1,3)),dtype=ga.vec.float3)
+        copy_to_float3( world_origin_np.reshape(1,3), world_origin )
+        world_scale = np.float32(world_scale)
+        world_origin_dev = ga.to_device(queue,world_origin)
+
+        # generate morton codes on GPU
+        for first_index, elements_this_iter, nblocks_this_iter in \
+                chunk_iterator(len(triangles), nthreads_per_block,
+                               max_blocks=30000):
+            bvh_funcs.make_leaves( queue, (nthreads_per_block,1,1), None,
+                                   np.uint32(first_index),
+                                   np.uint32(elements_this_iter),
+                                   triangles_dev.data, vertices_dev.data,
+                                   world_origin_dev.data, world_scale,
+                                   nodes.data, morton_codes.data )
+
+        morton_codes_host = morton_codes.get() >> (16 - morton_bits)
+
+    print type(morton_codes_host),morton_codes_host[0:50]
+    print nodes.get()[0:50]
+    
     return world_coords, nodes.get(), morton_codes_host
 
 def merge_nodes_detailed(nodes, first_child, nchild):

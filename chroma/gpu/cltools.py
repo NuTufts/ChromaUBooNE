@@ -2,6 +2,7 @@ import os
 import pytools
 import pyopencl as cl
 from chroma.cl import srcdir
+import numpy as np
 
 cl_options = ()
 
@@ -75,3 +76,27 @@ def get_last_context():
         created_contexts.append( create_cl_context() )
     return created_contexts[-1]
 
+# ============================================================================
+# Host mapped memory buffers
+# Quite a bit different than Page_locked device-mapped memory used in pycuda
+def mapped_alloc(shape, dtype, write_combined):
+    '''Returns a pagelocked host array mapped into the CUDA device
+    address space, with a gpudata field set so it just works with CUDA 
+    functions.'''
+    array = pagelocked_alloc_func(shape=shape, dtype=dtype, mem_flags=flags)
+    return array
+
+
+def mapped_empty( clcontext, shape, dtype, write_combined=False ):
+    '''Does not work!'''
+    flags = cl.mem_flags.ALLOC_HOST_PTR
+    if write_combined:
+        flags |= cl.mem_flags.READ_WRITE
+        
+    mem_host = np.empty( shape, dtype )
+    buf_dev = cl.Buffer( clcontext, flags, mem_host.nbytes )
+    queue = cl.CommandQueue(clcontext)
+    (mem_host2,event) = cl.enqueue_map_buffer( queue, buf_dev, cl.map_flags.WRITE, 0, shape, dtype )
+    print buf_dev
+    print type(mem_host2),dir(mem_host2),mem_host2.base
+    return buf_dev
