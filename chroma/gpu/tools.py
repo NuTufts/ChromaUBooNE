@@ -95,10 +95,11 @@ def to_float3(arr):
 def copy_to_float3( arr, f3arr ):
     if not arr.flags['C_CONTIGUOUS']:
         arr = np.asarray(arr, order='c')
-    print arr.shape
+    print f3arr.dtype
     f3arr['x'] = arr.astype(np.float32)[:,0]
     f3arr['y'] = arr.astype(np.float32)[:,1]
     f3arr['z'] = arr.astype(np.float32)[:,2]
+    f3arr['padding0'] = np.zeros(len(f3arr),dtype=np.float32)[:]
 
 def to_uint3(arr):
     "Returns a vec.uint3 array from an (N,3) array."
