@@ -75,6 +75,8 @@ def create_leaf_nodes(mesh, morton_bits=16, round_to_multiple=1):
         triangles[:] = to_uint3(mesh.triangles)
         vertices = mapped_empty(shape=len(mesh.vertices), dtype=ga.vec.float3, write_combined=True)
         vertices[:] = to_float3(mesh.vertices)
+        print triangles[0:10]
+        print vertices[0:10]
 
         # Call GPU to compute nodes
         nodes = ga.zeros(shape=round_up_to_multiple(len(triangles), round_to_multiple), dtype=ga.vec.uint4)
