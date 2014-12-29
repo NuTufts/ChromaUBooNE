@@ -1,13 +1,14 @@
 import numpy as np
 import chroma.api as gpuapi
 from chroma.gpu.tools import get_module, api_options, \
-    chunk_iterator, to_uint3, to_float3, mapped_empty, copy_to_uint3, copy_to_float3
+    chunk_iterator, to_uint3, to_float3, copy_to_uint3, copy_to_float3
 from chroma.gpu.gpufuncs import GPUFuncs
 if gpuapi.is_gpu_api_cuda():
     import pycuda.driver as cuda
     from pycuda import gpuarray as ga
     from pycuda import characterize
-    from chroma.gpu.cutools import Mapped
+    #from chroma.gpu.cutools import Mapped
+    import chroma.gpu.cutools as cutools
 elif gpuapi.is_gpu_api_opencl():
     import pyopencl as cl
     import pyopencl.array as ga
@@ -71,12 +72,12 @@ def create_leaf_nodes(mesh, morton_bits=16, round_to_multiple=1):
     if gpuapi.is_gpu_api_cuda():
         # here cuda supports a nice feature where we allocate host and device memory that are mapped onto one another.
         # no explicit requests for transfers here
-        triangles = mapped_empty(shape=len(mesh.triangles), dtype=ga.vec.uint3, write_combined=True)
+        triangles = cutools.mapped_empty(shape=len(mesh.triangles), dtype=ga.vec.uint3, write_combined=True)
         triangles[:] = to_uint3(mesh.triangles)
-        vertices = mapped_empty(shape=len(mesh.vertices), dtype=ga.vec.float3, write_combined=True)
+        vertices = cutools.mapped_empty(shape=len(mesh.vertices), dtype=ga.vec.float3, write_combined=True)
         vertices[:] = to_float3(mesh.vertices)
-        print triangles[0:10]
-        print vertices[0:10]
+        #print triangles[0:10]
+        #print vertices[0:10]
 
         # Call GPU to compute nodes
         nodes = ga.zeros(shape=round_up_to_multiple(len(triangles), round_to_multiple), dtype=ga.vec.uint4)
@@ -92,7 +93,7 @@ def create_leaf_nodes(mesh, morton_bits=16, round_to_multiple=1):
                                max_blocks=30000):
             bvh_funcs.make_leaves(np.uint32(first_index),
                                   np.uint32(elements_this_iter),
-                                  Mapped(triangles), Mapped(vertices),
+                                  cutools.Mapped(triangles), cutools.Mapped(vertices),
                                   world_origin, world_scale,
                                   nodes, morton_codes,
                                   block=(nthreads_per_block,1,1),
@@ -208,7 +209,6 @@ def merge_nodes_detailed(nodes, first_child, nchild):
         else:
             raise RuntimeError('API is neither CUDA nor OpenCL?!')
 
-    print gpu_parent_nodes.get()[0:10]
     return gpu_parent_nodes.get()
 
 def collapse_chains(nodes, layer_bounds):
@@ -282,29 +282,34 @@ def merge_nodes(nodes, degree, max_ratio=None):
         parent_nodes_np = np.zeros(shape=nparent, dtype=ga.vec.uint4)
         gpu_parent_nodes = ga.to_device( queue, parent_nodes_np )
         gpu_nodes = ga.to_device(queue,nodes)
+    else:
+        raise RuntimeError('API is neither CUDA nor OpenCL?!')
 
     # run kernel
-        for first_index, elements_this_iter, nblocks_this_iter in \
-                chunk_iterator(nparent, nthreads_per_block, max_blocks=10000):
-            if gpuapi.is_gpu_api_cuda():
-                bvh_funcs.make_parents(np.uint32(first_index),
-                                       np.uint32(elements_this_iter),
-                                       np.uint32(degree),
-                                       gpu_parent_nodes,
-                                       cuda.In(nodes),
-                                       np.uint32(0),
-                                       np.uint32(len(nodes)),
-                                       block=(nthreads_per_block,1,1),
-                                       grid=(nblocks_this_iter,1))
-            elif gpuapi.is_gpu_api_opencl():
-                bvh_funcs.make_parents(queue, (nthreads_per_block,1,1), None,
-                                       np.uint32(first_index),
-                                       np.uint32(elements_this_iter),
-                                       np.uint32(degree),
-                                       gpu_parent_nodes.data,
-                                       gpu_nodes.data,
-                                       np.uint32(0),
-                                       np.uint32(len(nodes)))
+    for first_index, elements_this_iter, nblocks_this_iter in \
+        chunk_iterator(nparent, nthreads_per_block, max_blocks=10000):
+        print first_index, elements_this_iter, nblocks_this_iter
+        if gpuapi.is_gpu_api_cuda():
+            bvh_funcs.make_parents(np.uint32(first_index),
+                                   np.uint32(elements_this_iter),
+                                   np.uint32(degree),
+                                   gpu_parent_nodes,
+                                   cuda.In(nodes),
+                                   np.uint32(0),
+                                   np.uint32(len(nodes)),
+                                   block=(nthreads_per_block,1,1),
+                                   grid=(nblocks_this_iter,1))
+        elif gpuapi.is_gpu_api_opencl():
+            bvh_funcs.make_parents(queue, (nthreads_per_block,1,1), None,
+                                   np.uint32(first_index),
+                                   np.uint32(elements_this_iter),
+                                   np.uint32(degree),
+                                   gpu_parent_nodes.data,
+                                   gpu_nodes.data,
+                                   np.uint32(0),
+                                   np.uint32(len(nodes)))
+        else:
+            raise RuntimeError('API is neither CUDA nor OpenCL?!')
 
     parent_nodes = gpu_parent_nodes.get()
 
@@ -366,8 +371,6 @@ def merge_nodes(nodes, degree, max_ratio=None):
             # total number of nodes at this level by 1.
             parent_nodes = new_parent_nodes
 
-    print "Final Parent Nodes"
-    print parent_nodes
     return parent_nodes
 
 def concatenate_layers(layers):
@@ -384,6 +387,8 @@ def concatenate_layers(layers):
     elif gpuapi.is_gpu_api_opencl():
         # don't like the last context method. trouble. trouble.
         bvh_module = get_module('bvh.cl', cltools.get_last_context(), options=api_options, include_source_directory=True)
+    else:
+        raise RuntimeError('API neither CUDA nor OpenCL?!')
     bvh_funcs = GPUFuncs(bvh_module)
 
     # Put 0 at beginning of list
@@ -428,7 +433,7 @@ def optimize_layer(orig_nodes):
     update = 10000
 
     skip_size = 1
-    flag = mapped_empty(shape=skip_size, dtype=np.uint32)
+    flag = cutools.mapped_empty(shape=skip_size, dtype=np.uint32)
 
     i = 0
     skips = 0
@@ -466,7 +471,7 @@ def optimize_layer(orig_nodes):
                                       np.uint32(blocks),
                                       min_areas,
                                       min_index,
-                                      Mapped(flag),
+                                      cutools.Mapped(flag),
                                       block=(nthreads_per_block,1,1),
                                       grid=(nblocks_this_iter, skip_this_round))
             blocks += nblocks_this_iter

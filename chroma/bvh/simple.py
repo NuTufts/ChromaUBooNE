@@ -14,6 +14,9 @@ def make_simple_bvh(mesh, degree):
     leaf_nodes[:len(argsort)] = leaf_nodes[argsort]
     assert len(leaf_nodes) % degree == 0
 
+    print "leaf nodes"
+    print leaf_nodes[0:50]
+
     # Create parent layers
     layers = [leaf_nodes]
     while len(layers[0]) > 1:
@@ -22,7 +25,7 @@ def make_simple_bvh(mesh, degree):
         parent = merge_nodes(top, degree=degree, max_ratio=2)
         layers = [parent, top] + layers[1:]
 
-    raise RuntimeError('stopping for debug')
+    #raise RuntimeError('stopping for debug')
     # How many nodes total?
     nodes, layer_bounds = concatenate_layers(layers)
     
