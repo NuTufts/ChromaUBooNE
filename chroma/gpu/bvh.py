@@ -371,9 +371,21 @@ def merge_nodes(nodes, degree, max_ratio=None):
     return parent_nodes
 
 def concatenate_layers(layers):
-    bvh_module = get_cu_module('bvh.cu', options=cuda_options,
-                               include_source_directory=True)
+    context = None
+    queue = None
+    if gpuapi.is_gpu_api_opencl():
+        context = cltools.get_last_context()
+        print context
+        queue = cl.CommandQueue( context )
+    
+    # Load GPU functions
+    if gpuapi.is_gpu_api_cuda():
+        bvh_module = get_module('bvh.cu', options=api_options, include_source_directory=True)
+    elif gpuapi.is_gpu_api_opencl():
+        # don't like the last context method. trouble. trouble.
+        bvh_module = get_module('bvh.cl', cltools.get_last_context(), options=api_options, include_source_directory=True)
     bvh_funcs = GPUFuncs(bvh_module)
+
     # Put 0 at beginning of list
     layer_bounds = np.insert(np.cumsum(map(len, layers)), 0, 0)
     nodes = ga.empty(shape=int(layer_bounds[-1]), dtype=ga.vec.uint4)
