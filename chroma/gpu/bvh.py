@@ -206,7 +206,6 @@ def merge_nodes_detailed(nodes, first_child, nchild):
         else:
             raise RuntimeError('API is neither CUDA nor OpenCL?!')
 
-    print gpu_parent_nodes.get()[0:10]
     return gpu_parent_nodes.get()
 
 def collapse_chains(nodes, layer_bounds):
