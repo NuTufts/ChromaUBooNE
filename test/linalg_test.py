@@ -1,5 +1,7 @@
 import os
 import numpy as np
+import chroma.api as gpuapi
+gpuapi.use_cuda()
 from pycuda import autoinit
 from pycuda.compiler import SourceModule
 import pycuda.driver as cuda

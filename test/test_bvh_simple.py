@@ -1,5 +1,7 @@
 from unittest_find import unittest
-import chroma.gpu.tools as gpu
+import chroma.api as api
+api.use_cuda()
+import chroma.gpu.cutools as gpu
 import pycuda.driver as cuda
 from chroma.bvh import make_simple_bvh, BVH
 from chroma.bvh.bvh import node_areas

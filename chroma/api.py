@@ -74,3 +74,9 @@ def is_gpu_api_cuda():
         return True
     else:
         return False
+
+def use_cuda():
+    a = Api( Api.cuda )
+
+def use_opencl():
+    a = Api( Api.opencl )
