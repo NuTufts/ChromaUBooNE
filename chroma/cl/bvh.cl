@@ -6,6 +6,8 @@
 #include "physical_constants.h"
 #include "sorting.h"
 
+float3 vminf(const float3 *a, const float3 *b);
+float3 vmaxf(const float3 *a, const float3 *b);
 unsigned long spread3_16(unsigned int input);
 unsigned long spread2_16(unsigned int input);
 unsigned int quantize(float v, float world_origin, float world_scale);
@@ -23,15 +25,15 @@ unsigned long ullmin( unsigned long a, unsigned long b );
 
 // OpenCL has native versions of these functions
 // // Vector utility functions
-// float3 fminf(const float3 &a, const float3 &b)
-// {
-//   return make_float3(fminf(a.x, b.x), fminf(a.y, b.y), fminf(a.z, b.z));
-// }
+float3 vminf(const float3 *a, const float3 *b)
+{
+  return make_float3(fmin((*a).x, (*b).x), fmin((*a).y, (*b).y), fmin((*a).z, (*b).z));
+}
 
-// float3 fmaxf(const float3 &a, const float3 &b)
-// {
-//   return make_float3(fmaxf(a.x, b.x), fmaxf(a.y, b.y), fmaxf(a.z, b.z));
-// }
+float3 vmaxf(const float3 *a, const float3 *b)
+{
+   return make_float3(fmax((*a).x, (*b).x), fmax((*a).y, (*b).y), fmax((*a).z, (*b).z));
+}
 
 // uint3 min(const uint3 &a, const uint3 &b)
 // {
@@ -82,6 +84,7 @@ unsigned long spread2_16(unsigned int input)
 unsigned int quantize(float v, float world_origin, float world_scale)
 {
   // truncate!
+  // returns a scaled 32 bit unsigned integer
   return (unsigned int) ((v - world_origin) / world_scale);
 }
 
@@ -132,7 +135,6 @@ uint4 node_union(const uint4 *a, const uint4 *b)
                     upper.y << 16 | lower.y,
                     upper.z << 16 | lower.z,
                     0);
-
 }      
 
 
@@ -224,6 +226,11 @@ make_leaves(unsigned int first_triangle,
   
   leaf_nodes[triangle_id] = leaf_node;
   morton_codes[triangle_id] = morton;
+  /*printf("id: %d, centroid: %.3f, %.3f, %.3f, qcent: %u, %u, %u  morton code: %lu\n", 
+	 triangle_id, 
+	 centroid.x, centroid.y, centroid.z, 
+	 q_centroid.x, q_centroid.y, q_centroid.z,
+	 morton );*/
 }
 
 __kernel void
@@ -231,8 +238,7 @@ reorder_leaves(unsigned int first_triangle,
 	       unsigned int ntriangles,
 	       __global uint4 *leaf_nodes_in, 
 	       __global uint4 *leaf_nodes_out,
-	       __global unsigned int *remap_order)
-  
+	       __global unsigned int *remap_order)  
 {
   unsigned int thread_id = get_local_size(0)*get_group_id(0) + get_local_id(0); // unsigned int thread_id = blockDim.x * blockIdx.x + threadIdx.x;
   //unsigned int thread_id = blockDim.x * blockIdx.x + threadIdx.x;
@@ -389,6 +395,7 @@ __kernel void
 copy_and_offset(unsigned int first_node,
 		unsigned int elements_this_launch, 
 		unsigned int child_id_offset,
+		unsigned int layer_start,
 		__global uint4 *src_nodes,
 		__global uint4 *dest_nodes)
   
@@ -404,7 +411,7 @@ copy_and_offset(unsigned int first_node,
   unsigned int child_id = src_node.w &  ~NCHILD_MASK;
   src_node.w = (nchild << CHILD_BITS) | (child_id + child_id_offset);
   
-  dest_nodes[node_id] = src_node;
+  dest_nodes[node_id+layer_start] = src_node;
 }
 
 __kernel void distance_to_prev(unsigned int first_node, 

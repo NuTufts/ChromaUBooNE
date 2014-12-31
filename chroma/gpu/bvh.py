@@ -48,7 +48,7 @@ def create_leaf_nodes(mesh, morton_bits=16, round_to_multiple=1):
     queue = None
     if gpuapi.is_gpu_api_opencl():
         context = cltools.get_last_context()
-        print context
+        #print context
         queue = cl.CommandQueue( context )
 
     # Load GPU functions
@@ -111,25 +111,24 @@ def create_leaf_nodes(mesh, morton_bits=16, round_to_multiple=1):
         # now create a buffer object on the device and push data to it
         triangles_dev = ga.to_device( queue, triangles )
         vertices_dev = ga.to_device( queue, vertices )
-        #print triangles[0:10]
-        #print vertices[0:10]
 
         # Call GPU to compute nodes
         nodes = ga.zeros(queue, shape=round_up_to_multiple(len(triangles), round_to_multiple), dtype=ga.vec.uint4)
         morton_codes = ga.empty(queue, shape=len(triangles), dtype=np.uint64)
 
         # Convert world coords to GPU-friendly types
+        #world_origin = np.array(world_origin_np,dtype=np.float32)
         world_origin = np.empty(1,dtype=ga.vec.float3)
         world_origin['x'] = world_origin_np[0]
         world_origin['y'] = world_origin_np[1]
         world_origin['z'] = world_origin_np[2]
         world_scale = np.float32(world_scale)
-        #print world_origin
+        #print world_origin, world_scale
         
         # generate morton codes on GPU
         for first_index, elements_this_iter, nblocks_this_iter in \
                 chunk_iterator(len(triangles), nthreads_per_block,
-                               max_blocks=30000):
+                               max_blocks=1):
             bvh_funcs.make_leaves( queue, (nthreads_per_block,1,1), None,
                                    np.uint32(first_index),
                                    np.uint32(elements_this_iter),
@@ -139,10 +138,6 @@ def create_leaf_nodes(mesh, morton_bits=16, round_to_multiple=1):
 
         morton_codes_host = morton_codes.get() >> (16 - morton_bits)
 
-    print "Morton Codes"
-    print morton_codes_host[0:10]
-    print "Nodes"
-    print nodes.get()[0:10]
     
     return world_coords, nodes.get(), morton_codes_host
 
@@ -155,7 +150,7 @@ def merge_nodes_detailed(nodes, first_child, nchild):
     queue = None
     if gpuapi.is_gpu_api_opencl():
         context = cltools.get_last_context()
-        print context
+        #print context
         queue = cl.CommandQueue( context )
 
     # Load GPU functions
@@ -252,7 +247,7 @@ def merge_nodes(nodes, degree, max_ratio=None):
     queue = None
     if gpuapi.is_gpu_api_opencl():
         context = cltools.get_last_context()
-        print context
+        #print context
         queue = cl.CommandQueue( context )
 
     # Load GPU functions
@@ -286,10 +281,9 @@ def merge_nodes(nodes, degree, max_ratio=None):
         raise RuntimeError('API is neither CUDA nor OpenCL?!')
 
     # run kernel
-    for first_index, elements_this_iter, nblocks_this_iter in \
-        chunk_iterator(nparent, nthreads_per_block, max_blocks=10000):
-        print first_index, elements_this_iter, nblocks_this_iter
-        if gpuapi.is_gpu_api_cuda():
+    if gpuapi.is_gpu_api_cuda():
+        for first_index, elements_this_iter, nblocks_this_iter in \
+                chunk_iterator(nparent, nthreads_per_block, max_blocks=10000):
             bvh_funcs.make_parents(np.uint32(first_index),
                                    np.uint32(elements_this_iter),
                                    np.uint32(degree),
@@ -299,7 +293,9 @@ def merge_nodes(nodes, degree, max_ratio=None):
                                    np.uint32(len(nodes)),
                                    block=(nthreads_per_block,1,1),
                                    grid=(nblocks_this_iter,1))
-        elif gpuapi.is_gpu_api_opencl():
+    elif gpuapi.is_gpu_api_opencl():
+        for first_index, elements_this_iter, nblocks_this_iter in \
+                chunk_iterator(nparent, nthreads_per_block, max_blocks=1):
             bvh_funcs.make_parents(queue, (nthreads_per_block,1,1), None,
                                    np.uint32(first_index),
                                    np.uint32(elements_this_iter),
@@ -308,8 +304,8 @@ def merge_nodes(nodes, degree, max_ratio=None):
                                    gpu_nodes.data,
                                    np.uint32(0),
                                    np.uint32(len(nodes)))
-        else:
-            raise RuntimeError('API is neither CUDA nor OpenCL?!')
+    else:
+        raise RuntimeError('API is neither CUDA nor OpenCL?!')
 
     parent_nodes = gpu_parent_nodes.get()
 
@@ -374,11 +370,12 @@ def merge_nodes(nodes, degree, max_ratio=None):
     return parent_nodes
 
 def concatenate_layers(layers):
+    nthreads_per_block = 1024
     context = None
     queue = None
     if gpuapi.is_gpu_api_opencl():
         context = cltools.get_last_context()
-        print context
+        #print context
         queue = cl.CommandQueue( context )
     
     # Load GPU functions
@@ -393,9 +390,25 @@ def concatenate_layers(layers):
 
     # Put 0 at beginning of list
     layer_bounds = np.insert(np.cumsum(map(len, layers)), 0, 0)
-    nodes = ga.empty(shape=int(layer_bounds[-1]), dtype=ga.vec.uint4)
-    nthreads_per_block = 256
 
+    # allocate memory
+    if gpuapi.is_gpu_api_cuda():
+        nodes = ga.empty(shape=int(layer_bounds[-1]), dtype=ga.vec.uint4)
+    elif gpuapi.is_gpu_api_opencl():
+        totsize = 0
+        #print layer_bounds[-1]
+        layers_gpu = []
+        for n,layer in enumerate(layers):
+            totsize += len(layer)
+            #print "LAYER ",n," size=",len(layer)
+            layers_gpu.append(ga.to_device(queue,layer))
+        nodes_iter_np = np.empty(totsize,dtype=ga.vec.uint4)
+        nodes_iter_gpu = ga.to_device(queue,nodes_iter_np)
+        nodeset_np = []
+    else:
+        raise RuntimeError('API neither CUDA nor OpenCL?!')
+
+    ilayer = 0
     for layer_start, layer_end, layer in zip(layer_bounds[:-1],
                                              layer_bounds[1:],
                                              layers):
@@ -405,17 +418,38 @@ def concatenate_layers(layers):
         else:
             child_offset = layer_end
 
+        #print "start,end,child_offset: ",layer_start, layer_end, child_offset
+        nmax_blocks = 10000
+        if gpuapi.is_gpu_api_opencl():
+            nmax_blocks = 1
         for first_index, elements_this_iter, nblocks_this_iter in \
                 chunk_iterator(layer_end-layer_start, nthreads_per_block,
-                               max_blocks=10000):
-            bvh_funcs.copy_and_offset(np.uint32(first_index),
-                                      np.uint32(elements_this_iter),
-                                      np.uint32(child_offset),
-                                      cuda.In(layer),
-                                      nodes[layer_start:],
-                                      block=(nthreads_per_block,1,1),
-                                      grid=(nblocks_this_iter,1))
-    return nodes.get(), layer_bounds
+                               max_blocks=nmax_blocks):
+            #print "   ",first_index, elements_this_iter, nblocks_this_iter, layer_start, len(layers_gpu[ilayer])
+            if gpuapi.is_gpu_api_cuda():
+                bvh_funcs.copy_and_offset(np.uint32(first_index),
+                                          np.uint32(elements_this_iter),
+                                          np.uint32(child_offset),
+                                          cuda.In(layer),
+                                          nodes[layer_start:],
+                                          block=(nthreads_per_block,1,1),
+                                          grid=(nblocks_this_iter,1))
+            elif gpuapi.is_gpu_api_opencl():
+                bvh_funcs.copy_and_offset( queue, (nthreads_per_block,1,1), None,
+                                           np.uint32(first_index),
+                                           np.uint32(elements_this_iter),
+                                           np.uint32(child_offset),
+                                           np.uint32(layer_start),
+                                           layers_gpu[ilayer].data,
+                                           nodes_iter_gpu.data )
+            else:
+                raise RuntimeError('API neither CUDA nor OpenCL?!')
+        ilayer += 1
+
+    if gpuapi.is_gpu_api_cuda():
+        return nodes.get(), layer_bounds
+    elif gpuapi.is_gpu_api_opencl():
+        return nodes_iter_gpu.get(), layer_bounds
 
 def optimize_layer(orig_nodes):
     bvh_module = get_cu_module('bvh.cu', options=cuda_options,

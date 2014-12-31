@@ -95,7 +95,6 @@ def to_float3(arr):
 def copy_to_float3( arr, f3arr ):
     if not arr.flags['C_CONTIGUOUS']:
         arr = np.asarray(arr, order='c')
-    print f3arr.dtype
     f3arr['x'] = arr.astype(np.float32)[:,0]
     f3arr['y'] = arr.astype(np.float32)[:,1]
     f3arr['z'] = arr.astype(np.float32)[:,2]

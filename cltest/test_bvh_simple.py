@@ -20,11 +20,9 @@ def build_simple_bvh(degree):
     layer_bounds = np.append(bvh.layer_offsets, len(nodes))
     world_coords = bvh.world_coords
 
-    #for i, (layer_start, layer_end) in enumerate(zip(layer_bounds[:-1], 
-    #                                                 layer_bounds[1:])):
-    #    print i, node_areas(nodes[layer_start:layer_end]).sum() * world_coords.world_scale**2
-    #
-    #
+    for i, (layer_start, layer_end) in enumerate(zip(layer_bounds[:-1], layer_bounds[1:])):
+        print i, node_areas(nodes[layer_start:layer_end]).sum() * world_coords.world_scale**2
+
     #assert isinstance(bvh, BVH)
 
 def test_simple():

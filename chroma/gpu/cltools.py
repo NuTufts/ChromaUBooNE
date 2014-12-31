@@ -49,7 +49,7 @@ def get_cl_module(name, clcontext, options=None, include_source_directory=True, 
         if template_fill[0][0] == 'debug' and template_fill[0][1] == 1:
             print source
             
-    print options
+    #print options
     return cl.Program( clcontext, source ).build(options)
 
 @pytools.memoize
