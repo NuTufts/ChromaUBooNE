@@ -17,3 +17,5 @@ Actually, this is a fork of Simon C. Blythe's fork or Chroma.
 * From my studies, differences are only off by one quantum along any axis
 * Example: Mismatch: ID=286  cuda= 114847925804877  cl= 114847925804876
   CUDA:  [37663, 55944, 4589]  CL:  [37662, 55944, 4589]  diff= [1 0 0]
+* CUDA value always seems to be bigger
+* For companion cube test about 1.9% of all morton codes are different
