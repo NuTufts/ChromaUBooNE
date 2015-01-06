@@ -9,6 +9,13 @@ Actually, this is a fork of Simon C. Blythe's fork or Chroma.
 * Fixed what seemed like a bug in detector.py where the pdf was defined with one too many bins.
 * Fixed a bug in gpu/tools.py: make_gpu_struct.  There were problems with the numpy buffer interface.
 * Modifications have been made to test functions that were used to help explore program behavior.  Some functions have been added.
+* Working on allowing running on OpenCL
+
+# OpenCL capability
+
+* API, CUDA or OpenCL, is selectable using functions in api.py
+* api.py also has functions to test which API
+* opencl has some big differences that affect chroma: no device-mapped memory, no built-in random number generator, and different struct creation/definition.
 
 # BVH Precision differences between opencl and cuda:
 
