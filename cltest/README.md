@@ -1,4 +1,4 @@
-Descriptions of different tests
+# Descriptions of different tests
 
 test_api.py: tests the chroma.api module
 * tested to work
@@ -22,3 +22,4 @@ test_sample_cdf.py: tests sampling from CDF
 test_propagation.py: checks for propagation bug
 * also is test that machinery is working
 * does not work, yet
+* requres geant4!

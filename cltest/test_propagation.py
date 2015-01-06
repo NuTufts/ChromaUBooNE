@@ -1,6 +1,7 @@
 from unittest_find import unittest
 import numpy as np
 
+import chroma.api as api
 from chroma.geometry import Solid, Geometry, vacuum
 from chroma.loader import create_geometry_from_obj
 from chroma.make import box
@@ -21,6 +22,8 @@ class TestPropagation(unittest.TestCase):
         cube = Geometry(vacuum)
         cube.add_solid(Solid(box(100,100,100), vacuum, vacuum))
         geo = create_geometry_from_obj(cube, update_bvh_cache=False)
+        return
+
         sim = Simulation(geo, geant4_processes=0)
 
         # Create initial photons
@@ -58,5 +61,5 @@ class TestPropagation(unittest.TestCase):
         
 
 if __name__=="__main__":
-    
+    api.use_opencl()
     unittest.main()

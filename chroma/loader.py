@@ -11,7 +11,8 @@ from chroma.bvh import make_simple_bvh, make_recursive_grid_bvh
 from chroma.geometry import Geometry, Solid, Mesh, vacuum
 from chroma.detector import Detector
 from chroma.stl import mesh_from_stl
-from chroma.gpu import create_cuda_context
+
+import chroma.gpu.tools as gputools
 
 def load_geometry_from_string(geometry_str, 
                               auto_build_bvh=True, read_bvh_cache=True,
