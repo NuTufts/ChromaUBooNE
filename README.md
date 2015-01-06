@@ -19,3 +19,10 @@ Actually, this is a fork of Simon C. Blythe's fork or Chroma.
   CUDA:  [37663, 55944, 4589]  CL:  [37662, 55944, 4589]  diff= [1 0 0]
 * CUDA value always seems to be bigger
 * For companion cube test about 1.9% of all morton codes are different
+
+# Random Number Generator
+
+* Unlike CUDA, OpenCL does not have a built-in random number generator
+* Implemented RNG using Random123 package: http://www.deshawresearch.com/downloads/download_random123.cgi/. Included in repo.
+* Random123 is in principle stateless. Created state vector in gpu/clrandstate.py. Implemented uniform sampler in cl/random.cl
+* tests, cltest/test_randomgen.py and cltest/test_sample_cdf.py, generate flat and gaussian distribution, respectively. Seems to work.
