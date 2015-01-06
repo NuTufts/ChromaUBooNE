@@ -1,11 +1,15 @@
 #ifndef __INTERPOLATE_H__
 #define __INTERPOLATE_H__
 
-__device__ float
-interp(float x, int n, float *xp, float *fp)
+float interp(float x, int n, __global float *xp, __global float *fp);
+float interp_uniform(float x, int n, float x0, float dx, float *fp);
+
+
+float interp(float x, int n, __global float *xp, __global float *fp)
 {
     int lower = 0;
     int upper = n-1;
+    int ihalf;
 
     if (x <= xp[lower])
 	return fp[lower];
@@ -15,22 +19,21 @@ interp(float x, int n, float *xp, float *fp)
 
     while (lower < upper-1)
     {
-	int half = (lower+upper)/2;
-
-	if (x < xp[half])
-	    upper = half;
-	else
-	    lower = half;
+      ihalf = (lower+upper)/2;
+      
+      if (x < xp[ihalf])
+	upper = ihalf;
+      else
+	lower = ihalf;
     }
 
     float df = fp[upper] - fp[lower];
     float dx = xp[upper] - xp[lower];
-
+    
     return fp[lower] + df*(x-xp[lower])/dx;
 }
 
-__device__ float
-interp_uniform(float x, int n, float x0, float dx, float *fp)
+float interp_uniform(float x, int n, float x0, float dx, float *fp)
 {
     if (x <= x0)
 	return x0;

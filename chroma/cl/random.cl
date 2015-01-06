@@ -3,7 +3,6 @@
 #define __RANDOM_H__
 
 #include <Random123/threefry.h>
-//#include <pyopencl-ranluxcl.cl>
 
 // Random123 provides stateless RNGs.
 // It produces a random number given a counter and key
@@ -15,7 +14,7 @@
 // The number must be big enough
 
 //#include "physical_constants.h"
-//#include "interpolate.h"
+#include "interpolate.h"
 
 // See gpu/clrandstate.py for pyopencl definition
 typedef struct {
@@ -25,8 +24,9 @@ typedef struct {
   unsigned int d;
 } clrandState;
 
-float uniform(clrandState *s, float low, float high);
-
+float clrand_uniform(__global clrandState *s, float low, float high);
+float sample_cdf(__global clrandState *rng, int ncdf, __global float *cdf_x, __global float *cdf_y);
+float sample_cdf_interp(__global clrandState *rng, int ncdf, float x0, float delta, float *cdf_y);
 
 
 __kernel void makeRandStates( unsigned int first_state_id,
@@ -46,12 +46,12 @@ __kernel void fillArray( unsigned int first_state_id,
 			 __global clrandState *s,
 			 __global float* out ) {
   unsigned int id = first_state_id + get_global_id(0);
-  clrandState state = s[id];
-  out[id] = uniform( &state, 0.0f, 1.0f );
+  out[id] = clrand_uniform( &s[id], 0.0f, 1.0f );
 };
 
-float uniform(clrandState *s, float low, float high)
+float clrand_uniform(__global clrandState *s, float low, float high)
 {
+  s->a++;
   unsigned int tid  = 0;
   threefry4x32_key_t k = {{tid, 0xdecafbad, 0xfacebead, 0x12345678}};
   threefry4x32_ctr_t c = {{s->a, s->b, s->c, s->d}};
@@ -59,7 +59,7 @@ float uniform(clrandState *s, float low, float high)
     threefry4x32_ctr_t c;
     int4 i;
   } u;
-  c.v[0]++;
+  c.v[0];
   u.c = threefry4x32(c, k); // should
   unsigned int ix = u.i.x; // converts the generated unsigned int into a float
   unsigned int max = 0xffffffff;
@@ -80,37 +80,35 @@ float uniform(clrandState *s, float low, float high)
 /*     return make_float3(c*cosf(theta), c*sinf(theta), u); */
 /* } */
 
-/* // Draw a random sample given a cumulative distribution function */
-/* // Assumptions: ncdf >= 2, cdf_y[0] is 0.0, and cdf_y[ncdf-1] is 1.0 */
-/* __device__ float */
-/* sample_cdf(curandState *rng, int ncdf, float *cdf_x, float *cdf_y) */
-/* { */
-/*     return interp(curand_uniform(rng),ncdf,cdf_y,cdf_x); */
-/* } */
+ // Draw a random sample given a cumulative distribution function */
+ // Assumptions: ncdf >= 2, cdf_y[0] is 0.0, and cdf_y[ncdf-1] is 1.0 */
+float sample_cdf(__global clrandState *rng, int ncdf, __global float *cdf_x, __global float *cdf_y) 
+{
+  float u = clrand_uniform(rng,0.0f,1.0f);
+  return interp(u,ncdf,cdf_y,cdf_x); 
+};
 
-/* // Sample from a uniformly-sampled CDF */
-/* __device__ float */
-/* sample_cdf(curandState *rng, int ncdf, float x0, float delta, float *cdf_y) */
-/* { */
-/*     float u = curand_uniform(rng); */
+// Sample from a uniformly-sampled CDF */
+float sample_cdf_interp(__global clrandState *rng, int ncdf, float x0, float delta, float *cdf_y) {
+  float u = clrand_uniform(rng,0.0f,1.0f);
 
-/*     int lower = 0; */
-/*     int upper = ncdf - 1; */
+  int lower = 0;
+  int upper = ncdf - 1;
 
-/*     while(lower < upper-1) */
-/*     { */
-/* 	int half = (lower + upper) / 2; */
-
-/* 	if (u < cdf_y[half]) */
-/* 	    upper = half; */
-/* 	else */
-/* 	    lower = half; */
-/*     } */
+  while(lower < upper-1)
+    { 
+      int ihalf = (lower + upper) / 2;
+      
+      if (u < cdf_y[ihalf]) 
+	upper = ihalf; 
+      else 
+	lower = ihalf;
+    }
   
-/*     float delta_cdf_y = cdf_y[upper] - cdf_y[lower]; */
+  float delta_cdf_y = cdf_y[upper] - cdf_y[lower];
 
-/*     return x0 + delta*lower + delta*(u-cdf_y[lower])/delta_cdf_y; */
-/* } */
+  return x0 + delta*lower + delta*(u-cdf_y[lower])/delta_cdf_y;
+}
 
 /* extern "C" */
 /* { */
@@ -135,7 +133,7 @@ float uniform(clrandState *s, float low, float high)
 /*     if (id >= nthreads) */
 /* 	return; */
 
-/*     a[id] = uniform(&s[id], low, high); */
+/*     a[id] = clrand_uniform(&s[id], low, high); */
 
 /* } */
 
@@ -147,7 +145,7 @@ float uniform(clrandState *s, float low, float high)
 /*     if (id >= nthreads) */
 /* 	return; */
 
-/*     a[id] = uniform_sphere(&s[id]); */
+/*     a[id] = clrand_uniform_sphere(&s[id]); */
 /* } */
 
 /* __global__ void */
