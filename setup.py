@@ -38,13 +38,15 @@ except OSError:
 include_dirs=['src']
 
 ##### figure out location of pyublas headers
-try:
-    from imp import find_module
-    file, pathname, descr = find_module("pyublas")
-    from os.path import join
-    include_dirs.append(join(pathname, "include"))
-except:
-    pass  # Don't throw exceptions if prereqs not installed yet
+#try:
+from imp import find_module
+#file, pathname, descr = find_module("pyublas")
+pathname = "./chroma_env/lib/python2.7/site-packages/pyublas/"
+from os.path import join
+include_dirs.append(join(pathname, "include"))
+print "pyublas headers: ",join(pathname, "include")
+#except:
+#    pass  # Don't throw exceptions if prereqs not installed yet
 
 #####
 
@@ -61,7 +63,7 @@ setup(
     version = '0.5',
     packages = find_packages(),
     include_package_data=True,
-
+    package_data = { 'chroma':['models/*.stl*','cuda/*.cu','cuda/*.h','cl/*.cl','cl/*.h'], },
     scripts = ['bin/chroma-sim', 'bin/chroma-cam',
                'bin/chroma-geo', 'bin/chroma-bvh',
                'bin/chroma-server'],
@@ -84,7 +86,9 @@ setup(
         ],
  
     setup_requires = ['pyublas'],
-    install_requires = ['uncertainties','pyzmq-static','spnav', 'pycuda', 
+#    install_requires = ['uncertainties','pyzmq-static','spnav', 'pycuda', 
+#                        'numpy>=1.6', 'pygame', 'nose', 'sphinx', 'unittest2'],
+    install_requires = ['uncertainties','pyzmq-static','spnav', 
                         'numpy>=1.6', 'pygame', 'nose', 'sphinx', 'unittest2'],
     test_suite = 'nose.collector',
     
