@@ -1,16 +1,24 @@
-
 import traceback
 import numpy as np
-import pycuda.driver as cuda
-from pycuda import gpuarray as ga
-from pycuda import characterize
+import chroma.api as api
+if api.is_gpu_api_cuda():
+    import pycuda.driver as cuda
+    from pycuda import gpuarray as ga
+    from pycuda import characterize
+    import chroma.gpu.cutools as cutools
+elif api.is_gpu_api_opencl():
+    import pyopencl as cl
+    import pyopencl.array as ga
+    import chroma.gpu.cltools as cltools
+else:
+    raise RuntimeError('API neither CUDA or OpenCL')
 
 from collections import OrderedDict
 
 from chroma.geometry import standard_wavelengths
-from chroma.gpu.tools import get_cu_module, get_cu_source, cuda_options, \
-    chunk_iterator, format_array, format_size, to_uint3, to_float3, \
-    make_gpu_struct, GPUFuncs, mapped_empty, Mapped
+from chroma.gpu.tools import chunk_iterator, format_array, format_size, to_uint3, to_float3, \
+    make_gpu_struct, mapped_empty, Mapped
+from chroma.gpu.gpufuncs import GPUFuncs
 
 #from chroma.log import logger
 import logging

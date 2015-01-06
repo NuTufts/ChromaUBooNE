@@ -5,15 +5,21 @@ import numpy as np
 
 import chroma.api as api
 from chroma import generator
-from chroma import gpu
 from chroma import event
 from chroma import itertoolset
 from chroma.tools import profile_if_possible
+import chroma.gpu.tools as gputools
+from chroma.gpu.detector import GPUDetector
+from chroma.gpu.daq import GPUDaq
+from chroma.gpu.pdf import GPUKernelPDF
+from chroma.gpu.geometry import GPUGeometry
 
 if api.is_gpu_api_cuda():
     import pycuda.driver as cuda
+    import chroma.gpu.cutools as cutools
 elif api.is_gpu_api_opencl():
     import pyopencl as cl
+    import chroma.gpu.cltools as cltools
 else:
     raise RuntimeError('API not set to either CUDA or OpenCL')
 
@@ -23,7 +29,7 @@ def pick_seed():
     return int(time.time()) ^ (os.getpid() << 16)
 
 class Simulation(object):
-    def __init__(self, detector, seed=None, cuda_device=None,
+    def __init__(self, detector, seed=None, cuda_device=None, cl_device=None,
                  geant4_processes=4, nthreads_per_block=64, max_blocks=1024):
         self.detector = detector
 
@@ -36,25 +42,33 @@ class Simulation(object):
             self.seed = seed
 
         # We have three generators to seed: numpy.random, GEANT4, and CURAND.
-        # The latter two are done below.
-        np.random.seed(self.seed)
 
+        # geant 4
         if geant4_processes > 0:
             self.photon_generator = generator.photon.G4ParallelGenerator(geant4_processes, detector.detector_material, base_seed=self.seed)
         else:
             self.photon_generator = None
 
-        self.context = gpu.create_cuda_context(cuda_device)
-
+        if api.is_gpu_api_cuda():
+            self.context = cutools.create_cuda_context(cuda_device)
+        elif api.is_gpu_api_opencl():
+            self.context = cltools.create_cl_context( cl_device )
+            self.clqueue = cl.CommandQueue( self.context )
+        
         if hasattr(detector, 'num_channels'):
-            self.gpu_geometry = gpu.GPUDetector(detector)
-            self.gpu_daq = gpu.GPUDaq(self.gpu_geometry)
-            self.gpu_pdf = gpu.GPUPDF()
-            self.gpu_pdf_kernel = gpu.GPUKernelPDF()
+            self.gpu_geometry = GPUDetector(detector)
+            self.gpu_daq = GPUDaq(self.gpu_geometry)
+            self.gpu_pdf = GPUPDF()
+            self.gpu_pdf_kernel = GPUKernelPDF()
         else:
-            self.gpu_geometry = gpu.GPUGeometry(detector)
+            self.gpu_geometry = GPUGeometry(detector)
+        # as far as I have gotten
 
+        # PRNG states
         self.rng_states = gpu.get_rng_states(self.nthreads_per_block*self.max_blocks, seed=self.seed)
+
+        # numpy
+        np.random.seed(self.seed) # numpy.random
 
         self.pdf_config = None
 
