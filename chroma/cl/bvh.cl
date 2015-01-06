@@ -564,8 +564,8 @@ __kernel void swap_nodes(unsigned int a_index, unsigned int b_index,
   node[b_index] = temp4;
 }
 
-__kernel void collapse_child(unsigned int start, unsigned int end,
-			     __global uint4 *node)
+__kernel void collapse_child(unsigned int start, unsigned int end, __global uint4 *node)
+			     
 {
   unsigned int thread_id = get_local_size(0)*get_group_id(0) + get_local_id(0); // unsigned int thread_id = blockDim.x * blockIdx.x + threadIdx.x;
   unsigned int stride = get_num_groups(0)*get_local_size(0);//gridDim.x * blockDim.x;

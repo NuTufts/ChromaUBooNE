@@ -40,8 +40,8 @@ include_dirs=['src']
 ##### figure out location of pyublas headers
 #try:
 from imp import find_module
-#file, pathname, descr = find_module("pyublas")
-pathname = "./chroma_env/lib/python2.7/site-packages/pyublas/"
+file, pathname, descr = find_module("pyublas")
+#pathname = "./chroma_env/lib/python2.7/site-packages/pyublas/"
 from os.path import join
 include_dirs.append(join(pathname, "include"))
 print "pyublas headers: ",join(pathname, "include")

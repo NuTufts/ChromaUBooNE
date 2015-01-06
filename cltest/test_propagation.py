@@ -1,3 +1,5 @@
+import os
+os.environ['PYOPENCL_CTX']='1'
 from unittest_find import unittest
 import numpy as np
 
@@ -22,9 +24,12 @@ class TestPropagation(unittest.TestCase):
         cube = Geometry(vacuum)
         cube.add_solid(Solid(box(100,100,100), vacuum, vacuum))
         geo = create_geometry_from_obj(cube, update_bvh_cache=False)
+
+        # Initialize simulation (without geant4)
+        sim = Simulation(geo, geant4_processes=0)
         return
 
-        sim = Simulation(geo, geant4_processes=0)
+
 
         # Create initial photons
         nphotons = 10000

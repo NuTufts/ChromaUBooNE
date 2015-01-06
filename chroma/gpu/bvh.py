@@ -174,7 +174,7 @@ def merge_nodes_detailed(nodes, first_child, nchild):
     elif gpuapi.is_gpu_api_opencl():
         gpu_nodes = ga.to_device(queue, nodes)
         gpu_first_child = ga.to_device(queue, first_child.astype(np.int32))
-        gpu_nchild = ga.to_device(quue, nchild.astype(np.int32))
+        gpu_nchild = ga.to_device(queue, nchild.astype(np.int32))
         nparent = len(first_child)
         parent_nodes_np = np.zeros(shape=nparent, dtype=ga.vec.uint4)
         gpu_parent_nodes = ga.to_device( queue, parent_nodes_np )
@@ -207,21 +207,38 @@ def merge_nodes_detailed(nodes, first_child, nchild):
     return gpu_parent_nodes.get()
 
 def collapse_chains(nodes, layer_bounds):
-    bvh_module = get_cu_module('bvh.cu', options=cuda_options,
-                               include_source_directory=True)
+    if gpuapi.is_gpu_api_cuda():
+        bvh_module = get_module('bvh.cu', options=cuda_options,include_source_directory=True)
+    elif gpuapi.is_gpu_api_opencl():
+        context = cltools.get_last_context()
+        queue = cl.CommandQueue( context )
+        bvh_module = get_module('bvh.cl', context, options=api_options, include_source_directory=True)
+    else:
+        raise RuntimeError('API neither CUDA or OpenCL')
+
     bvh_funcs = GPUFuncs(bvh_module)
     
-    gpu_nodes = ga.to_gpu(nodes)
+    if gpuapi.is_gpu_api_cuda():
+        gpu_nodes = ga.to_gpu(nodes)
+    elif gpuapi.is_gpu_api_opencl():
+        gpu_nodes = ga.to_device( queue, nodes )
 
     bounds = zip(layer_bounds[:-1], layer_bounds[1:])[:-1]
     bounds.reverse()
     nthreads_per_block = 256
     for start, end in bounds:
-        bvh_funcs.collapse_child(np.uint32(start),
-                                 np.uint32(end),
-                                 gpu_nodes,
-                                 block=(nthreads_per_block,1,1),
-                                 grid=(120,1))
+        if gpuapi.is_gpu_api_cuda():
+            bvh_funcs.collapse_child(np.uint32(start),
+                                     np.uint32(end),
+                                     gpu_nodes,
+                                     block=(nthreads_per_block,1,1),
+                                     grid=(120,1))
+        elif gpuapi.is_gpu_api_opencl():
+            bvh_funcs.collapse_child( queue, ( end-start, 1, 1 ), None,
+                                      np.uint32(start),
+                                      np.uint32(end),
+                                      gpu_nodes.data )
+
     return gpu_nodes.get()
 
 def area_sort_nodes(gpu_geometry, layer_bounds):

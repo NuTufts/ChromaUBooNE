@@ -3,13 +3,19 @@ import time
 import os
 import numpy as np
 
+import chroma.api as api
 from chroma import generator
 from chroma import gpu
 from chroma import event
 from chroma import itertoolset
 from chroma.tools import profile_if_possible
 
-import pycuda.driver as cuda
+if api.is_gpu_api_cuda():
+    import pycuda.driver as cuda
+elif api.is_gpu_api_opencl():
+    import pyopencl as cl
+else:
+    raise RuntimeError('API not set to either CUDA or OpenCL')
 
 def pick_seed():
     """Returns a seed for a random number generator selected using

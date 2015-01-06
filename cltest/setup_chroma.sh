@@ -1,1 +1,1 @@
-export PYTHONPATH=${PYTHONPATH}:/Users/twongjirad/working/chroma_uboone/
+export PYTHONPATH=${PYTHONPATH}:/Users/twongjirad/working/chroma_uboone/chroma_env/lib/python2.7/site-packages/

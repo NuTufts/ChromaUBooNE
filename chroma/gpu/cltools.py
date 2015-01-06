@@ -63,15 +63,25 @@ def get_cl_source(name):
 def create_cl_context(device=None, context_flags=None):
     """Initialize and return an OpenCL context on the specified device.
     If device_id is None, the default device is used."""
+    global created_contexts
     if device==None:
         ctx = cl.create_some_context()
     else:
         ctx = cl.Context( device, properties=context_flags, dev_type=cl.device_type.GPU )
     print "created opencl context: ",ctx
+    if ctx not in created_contexts:
+        created_contexts.append(ctx)
     return ctx
 
+def close_cl_context(context):
+    global created_contexts
+    if context in created_contexts:
+        created_contexts.remove( context )
+    print "closing cl context: ",context
+    del context
+
 def get_last_context():
-    global default_context
+    global created_contexts
     if len(created_contexts)==0:
         created_contexts.append( create_cl_context() )
     return created_contexts[-1]

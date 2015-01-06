@@ -6,6 +6,7 @@ import time
 import logging
 logger = logging.getLogger(__name__)
 
+import chroma.api as api
 from chroma.cache import Cache
 from chroma.bvh import make_simple_bvh, make_recursive_grid_bvh
 from chroma.geometry import Geometry, Solid, Mesh, vacuum
@@ -13,11 +14,17 @@ from chroma.detector import Detector
 from chroma.stl import mesh_from_stl
 
 import chroma.gpu.tools as gputools
+if api.is_gpu_api_cuda():
+    import chroma.gpu.cutools as cutools
+elif api.is_gpu_api_opencl():
+    import chroma.gpu.cltools as cltools
+else:
+    raise RuntimeError( 'API neither CUDA or OpenCL' )
 
 def load_geometry_from_string(geometry_str, 
                               auto_build_bvh=True, read_bvh_cache=True,
                               update_bvh_cache=True, cache_dir=None,
-                              cuda_device=None):
+                              cuda_device=None, cl_device=None):
     '''Create or load a geometry and optionally load/build a BVH for it.
 
     This is a convenience interface to the geometry and BVH construction code,
@@ -118,7 +125,7 @@ def load_geometry_from_string(geometry_str,
                                             read_bvh_cache=read_bvh_cache,
                                             update_bvh_cache=update_bvh_cache,
                                             cache_dir=cache_dir,
-                                            cuda_device=cuda_device)
+                                            cuda_device=cuda_device, cl_device=cl_device)
         return geometry # RETURN EARLY HERE!  ALREADY GOT BVH
 
     else:
@@ -134,14 +141,14 @@ def load_geometry_from_string(geometry_str,
                             read_bvh_cache=read_bvh_cache,
                             update_bvh_cache=update_bvh_cache,
                             cache_dir=cache_dir,
-                            cuda_device=cuda_device)
+                            cuda_device=cuda_device, cl_device=cl_device)
 
     return geometry
 
 def load_bvh(geometry,  bvh_name="default", 
              auto_build_bvh=True, read_bvh_cache=True,
              update_bvh_cache=True, cache_dir=None,
-             cuda_device=None):
+             cuda_device=None, cl_device=None):
     if cache_dir is None:
         cache = Cache()
     else:
@@ -157,9 +164,15 @@ def load_bvh(geometry,  bvh_name="default",
 
         start = time.time()
 
-        context = create_cuda_context(cuda_device)
-        bvh = make_recursive_grid_bvh(geometry.mesh, target_degree=3)
-        context.pop()
+        # creates quick context to make BVH
+        if api.is_gpu_api_cuda():
+            context = cutools.create_cuda_context(cuda_device)
+            bvh = make_recursive_grid_bvh(geometry.mesh, target_degree=3)
+            context.pop()
+        elif api.is_gpu_api_opencl():
+            context = cltools.create_cl_context( cl_device )
+            bvh = make_recursive_grid_bvh(geometry.mesh, target_degree=3)
+            cltools.close_cl_context(context)
 
         logger.info('BVH generated in %1.1f seconds.' % (time.time() - start))
 
@@ -172,7 +185,7 @@ def load_bvh(geometry,  bvh_name="default",
 def create_geometry_from_obj(obj, bvh_name="default", 
                              auto_build_bvh=True, read_bvh_cache=True,
                              update_bvh_cache=True, cache_dir=None,
-                             cuda_device=None):
+                             cuda_device=None, cl_device=None):
     if callable(obj):
         obj = obj()
 
@@ -196,6 +209,6 @@ def create_geometry_from_obj(obj, bvh_name="default",
                                 read_bvh_cache=read_bvh_cache,
                                 update_bvh_cache=update_bvh_cache,
                                 cache_dir=cache_dir,
-                                cuda_device=cuda_device)
+                                cuda_device=cuda_device, cl_device=cl_device)
 
     return geometry
