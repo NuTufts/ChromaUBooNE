@@ -1,7 +1,6 @@
 import chroma.api as api
 if not api.is_gpu_api_opencl():
     raise RuntimeError('Loading clrandstate when the API is not OpenCL')
-from chroma.gpu.tools import get_module, api_options, chunk_iterator
 from chroma.gpu.gpufuncs import GPUFuncs
 import pyopencl as cl
 import pyopencl.clrandom as clrand
@@ -42,18 +41,4 @@ def get_rng_states(context, size, seed=1):
     rng_states = cl.array.to_device( queue, rand_struct )
     return rng_states
 
-def fill_array( context, rng_states, size ):
-    queue = cl.CommandQueue(context)
-    out_gpu = cl.array.empty( queue, size, dtype=np.float32 )
-    randmod = get_module( "random.cl", context, options=api_options, include_source_directory=True)
-    randfuncs = GPUFuncs( randmod )
-    nthreads_per_block = 256
-    for first_index, elements_this_iter, nblocks_this_iter in \
-            chunk_iterator(size, nthreads_per_block, max_blocks=1):
-        randfuncs.fillArray( queue, (nthreads_per_block,1,1), None,
-                             np.uint32(first_index),
-                             rng_states.data,
-                             out_gpu.data )
-    out = out_gpu.get()
-    return out
 

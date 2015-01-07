@@ -77,8 +77,11 @@ def get_context(*args, **kwargs):
 
 # ==========================================
 # Random number utilities
-def get_rng_states(size, seed=1):
-    pass
+def get_rng_states(size, seed=1, cl_context=None):
+    if gpuapi.is_gpu_api_cuda():
+        return cutools.get_rng_states(size,seed=seed)
+    elif gpuapi.is_gpu_api_opencl():
+        return cltools.get_rng_states(size,seed=seed,cl_context=cl_context)
 
 def get_random_array( size, rng_states ):
     pass

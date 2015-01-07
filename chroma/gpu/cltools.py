@@ -110,3 +110,25 @@ def mapped_empty( clcontext, shape, dtype, write_combined=False ):
     print buf_dev
     print type(mem_host2),dir(mem_host2),mem_host2.base
     return buf_dev
+
+# ==========================================
+# Random number utilities
+import chroma.gpu.clrandstate as clrand
+def get_rng_states( size, seed=1, cl_context=None ):
+    return clrand.get_rng_states( cl_context, size, seed=seed )
+
+def fill_array( context, rng_states, size ):
+    queue = cl.CommandQueue(context)
+    out_gpu = cl.array.empty( queue, size, dtype=np.float32 )
+    randmod = get_cl_module( "random.cl", context, options=api_options, include_source_directory=True)
+    randfuncs = GPUFuncs( randmod )
+    nthreads_per_block = 256
+    for first_index, elements_this_iter, nblocks_this_iter in \
+            chunk_iterator(size, nthreads_per_block, max_blocks=1):
+        randfuncs.fillArray( queue, (nthreads_per_block,1,1), None,
+                             np.uint32(first_index),
+                             rng_states.data,
+                             out_gpu.data )
+    out = out_gpu.get()
+    return out
+

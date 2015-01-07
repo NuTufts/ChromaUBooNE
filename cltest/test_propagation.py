@@ -27,9 +27,6 @@ class TestPropagation(unittest.TestCase):
 
         # Initialize simulation (without geant4)
         sim = Simulation(geo, geant4_processes=0)
-        return
-
-
 
         # Create initial photons
         nphotons = 10000
@@ -45,6 +42,8 @@ class TestPropagation(unittest.TestCase):
 
         photons = Photons(pos=pos, dir=dir, pol=pol, t=t,
                           wavelengths=wavelengths)
+
+        return
 
         # First make one step to check for strangeness
         photons_end = sim.simulate([photons], keep_photons_end=True,

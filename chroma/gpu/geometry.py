@@ -104,12 +104,12 @@ class GPUGeometry(object):
             self.vertices[:] = to_float3(geometry.mesh.vertices)
             self.triangles[:] = to_uint3(geometry.mesh.triangles)
         elif api.is_gpu_api_opencl():
-            vertices_np = np.empty( len(geometry.mesh.vertices), dtype=ga.vec.float3 )
-            copy_to_float3( geometry.mesh.vertices, vertices_np ) 
-            self.vertices = ga.to_device(cl_queue, vertices_np)
-            triangles_np = np.empty( len(geometry.mesh.triangles), dtype=ga.vec.uint3 )
-            copy_to_uint3( geometry.mesh.triangles, triangles_np )
-            self.triangles = ga.to_device(cl_queue, triangles_np )
+            self.vertices = np.empty( len(geometry.mesh.vertices), dtype=ga.vec.float3 )
+            copy_to_float3( geometry.mesh.vertices, self.vertices ) 
+            self.vertices_gpu = ga.to_device(cl_queue, self.vertices)
+            self.triangles = np.empty( len(geometry.mesh.triangles), dtype=ga.vec.uint3 )
+            copy_to_uint3( geometry.mesh.triangles, self.triangles )
+            self.triangles_gpu = ga.to_device(cl_queue, self.triangles )
         
         if api.is_gpu_api_cuda():
             self.world_origin = ga.vec.make_float3(*geometry.bvh.world_coords.world_origin)
@@ -194,58 +194,66 @@ class GPUGeometry(object):
         self.metadata['d_splitting'] = splitting
         self.print_device_usage(cl_context=cl_context)
         pass
-
-
+    
         # See if there is enough memory to put the and/or triangles back on the GPU
-        gpu_free, gpu_total = cuda.mem_get_info()
+        if api.is_gpu_api_cuda():
+            gpu_free, gpu_total = cuda.mem_get_info()
+        elif api.is_gpu_api_opencl():
+            gpu_total = self.metadata['gpu_total']
+            gpu_free = gpu_total-self.metadata['d_gpu_used']
         self.metadata.array('e_triangles', self.triangles)
-        if self.triangles.nbytes < (gpu_free - min_free_gpu_mem):
-            self.triangles = ga.to_gpu(self.triangles)
-            log.info('Optimization: Sufficient memory to move triangles onto GPU')
-            triangles_gpu = 1
-        else:
-            log.warn('using host mapped memory triangles')
-            triangles_gpu = 0
-        pass
+        if api.is_gpu_api_cuda():
+            if self.triangles.nbytes < (gpu_free - min_free_gpu_mem):
+                self.triangles = ga.to_gpu(self.triangles)
+                log.info('Optimization: Sufficient memory to move triangles onto GPU')
+                ftriangles_gpu = 1
+            else:
+                log.warn('using host mapped memory triangles')
+                ftriangles_gpu = 0
+        elif api.is_gpu_api_opencl():
+            if self.triangles.nbytes < (gpu_free - min_free_gpu_mem):
+                self.triangles_gpu = ga.to_device(cl_queue,self.triangles)
+                log.info('Optimization: Sufficient memory to move triangles onto GPU')
+                ftriangles_gpu = 1
+            else:
+                log.warn('using host mapped memory triangles')
+                ftriangles_gpu = 0
+
         self.metadata('e',"after triangles")
-        self.metadata['e_triangles_gpu'] = triangles_gpu
+        self.metadata['e_triangles_gpu'] = ftriangles_gpu
 
-
-
-        gpu_free, gpu_total = cuda.mem_get_info()
-        self.metadata.array('f_vertices', self.vertices )
-        if self.vertices.nbytes < (gpu_free - min_free_gpu_mem):
-            self.vertices = ga.to_gpu(self.vertices)
-            log.info('Optimization: Sufficient memory to move vertices onto GPU')
-            vertices_gpu = 1
-        else:
-            log.warn('using host mapped memory vertices')
-            vertices_gpu = 0
-        pass 
-        self.metadata('f',"after vertices")
-        self.metadata['f_vertices_gpu'] = vertices_gpu
-
-
-
-        self.gpudata = make_gpu_struct(geometry_struct_size,
-                                       [Mapped(self.vertices), 
-                                        Mapped(self.triangles),
-                                        self.material_codes,
-                                        self.colors, self.nodes,
-                                        Mapped(self.extra_nodes),
-                                        self.material_pointer_array,
-                                        self.surface_pointer_array,
-                                        self.world_origin,
-                                        self.world_scale,
-                                        np.int32(len(self.nodes))])
-
-        self.geometry = geometry
-
-        if print_usage:
-            self.print_device_usage()
-        log.info(self.device_usage_str())
-
-        self.metadata('g',"after geometry struct")
+        #gpu_free, gpu_total = cuda.mem_get_info()
+        #self.metadata.array('f_vertices', self.vertices )
+        #if self.vertices.nbytes < (gpu_free - min_free_gpu_mem):
+        #    self.vertices = ga.to_gpu(self.vertices)
+        #    log.info('Optimization: Sufficient memory to move vertices onto GPU')
+        #    vertices_gpu = 1
+        #else:
+        #    log.warn('using host mapped memory vertices')
+        #    vertices_gpu = 0
+        #pass 
+        #self.metadata('f',"after vertices")
+        #self.metadata['f_vertices_gpu'] = vertices_gpu
+        
+        #self.gpudata = make_gpu_struct(geometry_struct_size,
+        #                               [Mapped(self.vertices), 
+        #                                Mapped(self.triangles),
+        #                                self.material_codes,
+        #                                self.colors, self.nodes,
+        #                                Mapped(self.extra_nodes),
+        #                                self.material_pointer_array,
+        #                                self.surface_pointer_array,
+        #                                self.world_origin,
+        #                                self.world_scale,
+        #                                np.int32(len(self.nodes))])
+        #
+        #self.geometry = geometry
+        #
+        #if print_usage:
+        #    self.print_device_usage()
+        #log.info(self.device_usage_str())
+        #
+        #self.metadata('g',"after geometry struct")
 
 
     def _interp_material_property( self, wavelengths, property ):

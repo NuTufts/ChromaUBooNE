@@ -72,7 +72,7 @@ class Simulation(object):
         # as far as I have gotten
 
         # PRNG states
-        self.rng_states = gpu.get_rng_states(self.nthreads_per_block*self.max_blocks, seed=self.seed)
+        self.rng_states = gputools.get_rng_states(self.nthreads_per_block*self.max_blocks, seed=self.seed, cl_context=self.context)
 
         # numpy
         np.random.seed(self.seed) # numpy.random
@@ -280,4 +280,7 @@ class Simulation(object):
         return self.gpu_pdf_kernel.get_kernel_eval()
 
     def __del__(self):
-        self.context.pop()
+        if api.is_gpu_api_cuda():
+            self.context.pop()
+        elif api.is_gpu_api_opencl():
+            cltools.close_cl_context( self.context )
