@@ -51,17 +51,24 @@ class Simulation(object):
 
         if api.is_gpu_api_cuda():
             self.context = cutools.create_cuda_context(cuda_device)
+            if hasattr(detector, 'num_channels'):
+                self.gpu_geometry = GPUDetector(detector)
+                self.gpu_daq = GPUDaq(self.gpu_geometry)
+                self.gpu_pdf = GPUPDF()
+                self.gpu_pdf_kernel = GPUKernelPDF()
+            else:
+                self.gpu_geometry = GPUGeometry(detector)
         elif api.is_gpu_api_opencl():
             self.context = cltools.create_cl_context( cl_device )
             self.clqueue = cl.CommandQueue( self.context )
-        
-        if hasattr(detector, 'num_channels'):
-            self.gpu_geometry = GPUDetector(detector)
-            self.gpu_daq = GPUDaq(self.gpu_geometry)
-            self.gpu_pdf = GPUPDF()
-            self.gpu_pdf_kernel = GPUKernelPDF()
-        else:
-            self.gpu_geometry = GPUGeometry(detector)
+            if hasattr(detector, 'num_channels'):
+                self.gpu_geometry = GPUDetector(detector, cl_context=self.context, cl_queue=self.clqueue)
+                self.gpu_daq = GPUDaq(self.gpu_geometry)
+                self.gpu_pdf = GPUPDF()
+                self.gpu_pdf_kernel = GPUKernelPDF()
+            else:
+                self.gpu_geometry = GPUGeometry(detector, cl_context=self.context, cl_queue=self.clqueue)
+
         # as far as I have gotten
 
         # PRNG states
