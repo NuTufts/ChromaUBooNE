@@ -10,6 +10,7 @@ from chroma.make import box
 from chroma.sim import Simulation
 from chroma.event import Photons
 from chroma.tools import count_nonzero
+import chroma.gpu.cltools as cltools
 
 class TestPropagation(unittest.TestCase):
     def testAbort(self):
@@ -43,11 +44,11 @@ class TestPropagation(unittest.TestCase):
         photons = Photons(pos=pos, dir=dir, pol=pol, t=t,
                           wavelengths=wavelengths)
 
-        return
-
         # First make one step to check for strangeness
         photons_end = sim.simulate([photons], keep_photons_end=True,
                                    max_steps=1).next().photons_end
+
+        return
 
         self.assertFalse(np.isnan(photons_end.pos).any())
         self.assertFalse(np.isnan(photons_end.dir).any())

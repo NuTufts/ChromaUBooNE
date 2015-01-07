@@ -1,17 +1,22 @@
 import numpy as np
 import sys
 import gc
-from pycuda import gpuarray as ga
-import pycuda.driver as cuda
-
+import chroma.api as api
+if api.is_gpu_api_cuda():
+    import pycuda.driver as cuda
+    from pycuda import gpuarray as ga
+elif api.is_gpu_api_opencl():
+    import pyopencl as cl
+    #from pyopencl.array import Array as ga
+    import pyopencl.array as ga
 from chroma.tools import profile_if_possible
 from chroma import event
-from chroma.gpu.tools import get_cu_module, cuda_options, GPUFuncs, \
-    chunk_iterator, to_float3
+from chroma.gpu.tools import get_module, api_options, chunk_iterator, to_float3, copy_to_float3
+from chroma.gpu.gpufuncs import GPUFuncs
 
 
 class GPUPhotons(object):
-    def __init__(self, photons, ncopies=1):
+    def __init__(self, photons, ncopies=1, cl_context=None):
         """Load ``photons`` onto the GPU, replicating as requested.
 
            Args:
@@ -27,15 +32,27 @@ class GPUPhotons(object):
                    larger if ncopies > 1, so be careful.
         """
         nphotons = len(photons)
-        self.pos = ga.empty(shape=nphotons*ncopies, dtype=ga.vec.float3)
-        self.dir = ga.empty(shape=nphotons*ncopies, dtype=ga.vec.float3)
-        self.pol = ga.empty(shape=nphotons*ncopies, dtype=ga.vec.float3)
-        self.wavelengths = ga.empty(shape=nphotons*ncopies, dtype=np.float32)
-        self.t = ga.empty(shape=nphotons*ncopies, dtype=np.float32)
-        self.last_hit_triangles = ga.empty(shape=nphotons*ncopies, dtype=np.int32)
-        self.flags = ga.empty(shape=nphotons*ncopies, dtype=np.uint32)
-        self.weights = ga.empty(shape=nphotons*ncopies, dtype=np.float32)
-
+        # Allocate GPU memory for photon info and push to device
+        if api.is_gpu_api_cuda():
+            self.pos = ga.empty(shape=nphotons*ncopies, dtype=ga.vec.float3)
+            self.dir = ga.empty(shape=nphotons*ncopies, dtype=ga.vec.float3)
+            self.pol = ga.empty(shape=nphotons*ncopies, dtype=ga.vec.float3)
+            self.wavelengths = ga.empty(shape=nphotons*ncopies, dtype=np.float32)
+            self.t = ga.empty(shape=nphotons*ncopies, dtype=np.float32)
+            self.last_hit_triangles = ga.empty(shape=nphotons*ncopies, dtype=np.int32)
+            self.flags = ga.empty(shape=nphotons*ncopies, dtype=np.uint32)
+            self.weights = ga.empty(shape=nphotons*ncopies, dtype=np.float32)
+        elif api.is_gpu_api_opencl():
+            queue = cl.CommandQueue( cl_context )
+            self.pos = ga.empty(queue, shape=nphotons*ncopies, dtype=ga.vec.float3)
+            self.dir = ga.empty(queue, shape=nphotons*ncopies, dtype=ga.vec.float3)
+            self.pol = ga.empty(queue, shape=nphotons*ncopies, dtype=ga.vec.float3)
+            self.wavelengths = ga.empty(queue, shape=nphotons*ncopies, dtype=np.float32)
+            self.t = ga.empty(queue, shape=nphotons*ncopies, dtype=np.float32)
+            self.last_hit_triangles = ga.empty(queue, shape=nphotons*ncopies, dtype=np.int32)
+            self.flags = ga.empty(queue, shape=nphotons*ncopies, dtype=np.uint32)
+            self.weights = ga.empty(queue, shape=nphotons*ncopies, dtype=np.float32)
+        
         # Assign the provided photons to the beginning (possibly
         # the entire array if ncopies is 1
         self.pos[:nphotons].set(to_float3(photons.pos))
@@ -47,8 +64,13 @@ class GPUPhotons(object):
         self.flags[:nphotons].set(photons.flags.astype(np.uint32))
         self.weights[:nphotons].set(photons.weights.astype(np.float32))
 
-        module = get_cu_module('propagate.cu', options=cuda_options)
+        if api.is_gpu_api_cuda():
+            module = get_module('propagate.cu', options=api_options, include_source_directory=True)
+        elif  api.is_gpu_api_opencl():
+            module = get_module('propagate.cl', cl_context, options=api_options, include_source_directory=True)
         self.gpu_funcs = GPUFuncs(module)
+
+        raise RuntimeError('bail')
 
         # Replicate the photons to the rest of the slots if needed
         if ncopies > 1:

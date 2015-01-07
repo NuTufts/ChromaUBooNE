@@ -91,9 +91,19 @@ def get_random_array( size, rng_states ):
 # vector type utilities
 def to_float3(arr):
     "Returns a vec.float3 array from an (N,3) array."
-    if not arr.flags['C_CONTIGUOUS']:
-        arr = np.asarray(arr, order='c')
-    return arr.astype(np.float32).view(ga.vec.float3)[:,0]
+    if gpuapi.is_gpu_api_cuda():
+        if not arr.flags['C_CONTIGUOUS']:
+            arr = np.asarray(arr, order='c')
+        return arr.astype(np.float32).view(ga.vec.float3)[:,0]
+    elif gpuapi.is_gpu_api_opencl():
+        # in the pyopencl implementation, the vec types have a padding column
+        # need to extend this
+        n = len(arr)
+        pad = np.zeros( (n,1), dtype=arr.dtype )
+        arr_wpad = np.hstack( (arr, pad) )
+        return arr_wpad.astype(np.float32).view(ga.vec.float3)[:,0]
+    else:
+        raise RuntimeError('API is neither CUDA nor OpenCL')
 
 def copy_to_float3( arr, f3arr ):
     if not arr.flags['C_CONTIGUOUS']:

@@ -13,6 +13,7 @@ from chroma.gpu.detector import GPUDetector
 from chroma.gpu.daq import GPUDaq
 from chroma.gpu.pdf import GPUKernelPDF
 from chroma.gpu.geometry import GPUGeometry
+from chroma.gpu.photon import GPUPhotons
 
 if api.is_gpu_api_cuda():
     import pycuda.driver as cuda
@@ -42,7 +43,6 @@ class Simulation(object):
             self.seed = seed
 
         # We have three generators to seed: numpy.random, GEANT4, and CURAND.
-
         # geant 4
         if geant4_processes > 0:
             self.photon_generator = generator.photon.G4ParallelGenerator(geant4_processes, detector.detector_material, base_seed=self.seed)
@@ -80,7 +80,7 @@ class Simulation(object):
         self.pdf_config = None
 
     def simulate(self, iterable, keep_photons_beg=False,
-                 keep_photons_end=False, run_daq=True, max_steps=100):
+                 keep_photons_end=False, run_daq=True, max_steps=100 ):
         try:
             if isinstance(iterable, event.Photons):
                 raise TypeError # Kludge because Photons looks iterable
@@ -98,8 +98,8 @@ class Simulation(object):
             iterable = self.photon_generator.generate_events(iterable)
 
         for ev in iterable:
-            gpu_photons = gpu.GPUPhotons(ev.photons_beg)
-
+            gpu_photons = GPUPhotons(ev.photons_beg,cl_context=self.context)
+            raise RuntimeError('bail!')
             gpu_photons.propagate(self.gpu_geometry, self.rng_states,
                                   nthreads_per_block=self.nthreads_per_block,
                                   max_blocks=self.max_blocks,
