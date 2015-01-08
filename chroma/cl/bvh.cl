@@ -580,7 +580,7 @@ __kernel void collapse_child(unsigned int start, unsigned int end, __global uint
 }
 
 __kernel void area_sort_child(unsigned int start, unsigned int end,
-			      __global Geometry *geometry)
+			      __local Geometry *geometry)
 {
   //unsigned int thread_id = blockDim.x * blockIdx.x + threadIdx.x;
   //unsigned int stride = gridDim.x * blockDim.x;

@@ -1,8 +1,9 @@
 //-*-c++-*-
-#ifndef __RANDOM_H__
-#define __RANDOM_H__
+#ifndef __RANDOM_CL__
+#define __RANDOM_CL__
 
 #include <Random123/threefry.h>
+#include "random.h"
 
 // Random123 provides stateless RNGs.
 // It produces a random number given a counter and key
@@ -17,13 +18,6 @@
 #include "interpolate.h"
 
 // See gpu/clrandstate.py for pyopencl definition
-typedef struct {
-  unsigned int a;
-  unsigned int b; 
-  unsigned int c; 
-  unsigned int d;
-} clrandState;
-
 float clrand_uniform(__global clrandState *s, float low, float high);
 float sample_cdf(__global clrandState *rng, int ncdf, __global float *cdf_x, __global float *cdf_y);
 float sample_cdf_interp(__global clrandState *rng, int ncdf, float x0, float delta, float *cdf_y);
@@ -59,8 +53,7 @@ float clrand_uniform(__global clrandState *s, float low, float high)
     threefry4x32_ctr_t c;
     int4 i;
   } u;
-  c.v[0];
-  u.c = threefry4x32(c, k); // should
+  u.c = threefry4x32(c, k);
   unsigned int ix = u.i.x; // converts the generated unsigned int into a float
   unsigned int max = 0xffffffff;
   float factor = 1.0f/(float)max;

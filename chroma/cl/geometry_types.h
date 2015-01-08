@@ -1,41 +1,49 @@
 #ifndef __GEOMETRY_TYPES_H__
 #define __GEOMETRY_TYPES_H__
 
-
 unsigned int AvoidWarningThatCausesGDBGrief(void);
 
 
 typedef struct Material
 {
-    float *refractive_index;
-    float *absorption_length;
-    float *scattering_length;
-    float *reemission_prob;
-    float *reemission_cdf;
-    unsigned int n;
-    float step;
-    float wavelength0;
+  __global float *refractive_index;
+  __global float *absorption_length;
+  __global float *scattering_length;
+  __global float *reemission_prob;
+  __global float *reemission_cdf;
+  // these are moved out to satify requirement that all members are from same address space
+  unsigned int n;
+  float step;
+  float wavelength0;
 } Material;
+
+typedef struct WavelengthAxis {
+  unsigned int n;
+  float step;
+  float wavelength0;
+} WavelengthAxis;
 
 enum { SURFACE_DEFAULT, SURFACE_COMPLEX, SURFACE_WLS };
 
 typedef struct Surface
 {
-    float *detect;
-    float *absorb;
-    float *reemit;
-    float *reflect_diffuse;
-    float *reflect_specular;
-    float *eta;
-    float *k;
-    float *reemission_cdf;
+  __global float *detect;
+  __global float *absorb;
+  __global float *reemit;
+  __global float *reflect_diffuse;
+  __global float *reflect_specular;
+  __global float *eta;
+  __global float *k;
+  __global float *reemission_cdf;
 
-    unsigned int model;
-    unsigned int n;
-    unsigned int transmissive;
-    float step;
-    float wavelength0;
-    float thickness;
+  __global unsigned int *model;
+  __global unsigned int *transmissive;
+  __global float *thickness;
+
+  unsigned int n;
+  float step;
+  float wavelength0;
+
 } Surface;
 
 typedef struct Triangle
@@ -61,19 +69,45 @@ typedef struct Node
     unsigned int nchild;
 } Node;
 
+// when things go poorly, blames this struct
 typedef struct Geometry
 {
-    float3 *vertices;
-    uint3 *triangles;
-    unsigned int *material_codes;
-    unsigned int *colors;
-    uint4 *primary_nodes;
-    uint4 *extra_nodes;
-    Material **materials;
-    Surface **surfaces;
-    float3 world_origin;
-    float world_scale;
-    int nprimary_nodes;
+  __global float3 *vertices;
+  __global uint3 *triangles;
+  __global unsigned int *material_codes;
+  __global unsigned int *colors;
+  __global uint4 *primary_nodes;
+  __global uint4 *extra_nodes;
+
+  //__global Material *materials;
+  __global float *refractive_index;
+  __global float *absorption_length;
+  __global float *scattering_length;
+  __global float *reemission_prob;
+  __global float *reemission_cdf;  
+
+  //__global Surface *surfaces;
+  __global float *detect;
+  __global float *absorb;
+  __global float *reemit;
+  __global float *reflect_diffuse;
+  __global float *reflect_specular;
+  __global float *eta;
+  __global float *k;
+  __global float *surf_reemission_cdf;
+
+  __global unsigned int *model;
+  __global unsigned int *transmissive;
+  __global float *thickness;  
+
+  float3 world_origin;
+  float world_scale;
+  int nprimary_nodes;
+
+  int nwavelengths;
+  float step;
+  float wavelength0;
+
 } Geometry;
 
 #endif

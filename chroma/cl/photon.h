@@ -1,18 +1,18 @@
 #ifndef __PHOTON_H__
 #define __PHOTON_H__
 
-#include "stdio.h"
+//#include "stdio.h"
 #include "linalg.h"
 #include "rotate.h"
-#include "random.h"
+#include "random.cl"
 #include "physical_constants.h"
 #include "mesh.h"
 #include "geometry.h"
-#include "cx.h"
+#include "cx.h" // complex functions
 
 #define WEIGHT_LOWER_THRESHOLD 0.0001f
 
-struct Photon
+typedef struct Photon
 {
     float3 position;
     float3 direction;
@@ -30,29 +30,37 @@ struct Photon
     int id ;
 #endif
 
-};
+} Photon;
 
-struct State
+typedef struct State
 {
-    bool inside_to_outside;
+  bool inside_to_outside;
 
-    float3 surface_normal;
+  float3 surface_normal;
+  
+  float refractive_index1, refractive_index2;
+  float absorption_length;
+  float scattering_length;
+  float reemission_prob;
+  //Material *material1;
+  __global float *mat1_refractive_index;  // addresses to what memory space?
+  __global float *mat1_absorption_length;
+  __global float *mat1_scattering_length;
+  __global float *mat1_reemission_prob;
+  __global float *mat1_reemission_cdf;
+  unsigned int n;
+  float step;
+  float wavelength0;
+  
+  int surface_index;
 
-    float refractive_index1, refractive_index2;
-    float absorption_length;
-    float scattering_length;
-    float reemission_prob;
-    Material *material1;
+  float distance_to_boundary;
 
-    int surface_index;
-
-    float distance_to_boundary;
-
-    // SCB debug addition
-    int material1_index ; 
-    int material2_index ; 
-
-};
+  // SCB debug addition
+  int material1_index ; 
+  int material2_index ; 
+  
+} State;
 
 enum
 {
@@ -68,10 +76,6 @@ enum
     BULK_REEMIT      = 0x1 << 9,
     NAN_ABORT        = 0x1 << 31
 }; // processes
-
-
-
-
 
 enum { BREAK, CONTINUE, PASS, START, RETURN }; // return value from propagate_to_boundary
 
@@ -91,11 +95,18 @@ enum {
    STATUS_DONE,
 }; // propagate_vbo status for debug tracing 
 
+// -----------------------------------------------------------------
+// declarations
+void pdump( Photon* p, int photon_id, int status, int steps, int command, int slot );
+int convert(int c);
+float get_theta(const float3 *a, const float3 *b);
+void fill_state(State* s, Photon* p, __local Geometry *g);
+float3 pick_new_direction(float3 axis, float theta, float phi);
+void rayleigh_scatter(Photon *p, __global clrandState *rng);
+int propagate_to_boundary(Photon* p, State* s, __global clrandState* rng, bool use_weights, int scatter_first);
 
-__device__ void 
-pdump( Photon& p, int photon_id, int status, int steps, int command, int slot )
+void pdump( Photon* p, int photon_id, int status, int steps, int command, int slot )
 {
-#if __CUDA_ARCH__ >= 200
   // printf only supported for computer capability > 2.0
     switch(status)
     {
@@ -126,37 +137,32 @@ pdump( Photon& p, int photon_id, int status, int steps, int command, int slot )
     }
 
     printf("[%6d] slot %2d steps %2d ", photon_id, slot, steps );
-    printf("lht %6d tpos %8.3f %10.2f %10.2f %10.2f ", p.last_hit_triangle, p.time, p.position.x, p.position.y, p.position.z );
-    printf("   w %7.2f   dir %8.2f %8.2f %8.2f ", p.wavelength, p.direction.x, p.direction.y, p.direction.z );
-    printf("pol %8.3f %8.3f %8.3f ",   p.polarization.x, p.polarization.y, p.polarization.z );
-    //printf("flg %4d ", p.history );
+    printf("lht %6d tpos %8.3f %10.2f %10.2f %10.2f ", p->last_hit_triangle, p->time, p->position.x, p->position.y, p->position.z );
+    printf("   w %7.2f   dir %8.2f %8.2f %8.2f ", p->wavelength, p->direction.x, p->direction.y, p->direction.z );
+    printf("pol %8.3f %8.3f %8.3f ",   p->polarization.x, p->polarization.y, p->polarization.z );
+    //printf("flg %4d ", p->history );
 
     // maybe arrange to show history changes ?
-    if (p.history & NO_HIT )           printf("NO_HIT ");
-    if (p.history & RAYLEIGH_SCATTER ) printf("RAYLEIGH_SCATTER ");
-    if (p.history & REFLECT_DIFFUSE )  printf("REFLECT_DIFFUSE ");
-    if (p.history & REFLECT_SPECULAR ) printf("REFLECT_SPECULAR ");
-    if (p.history & SURFACE_REEMIT )   printf("SURFACE_REEMIT ");
-    if (p.history & BULK_REEMIT )      printf("BULK_REEMIT ");
-    if (p.history & SURFACE_TRANSMIT ) printf("SURFACE_TRANSMIT ");
-    if (p.history & SURFACE_ABSORB )   printf("SURFACE_ABSORB ");
-    if (p.history & SURFACE_DETECT )   printf("SURFACE_DETECT ");
-    if (p.history & BULK_ABSORB )      printf("BULK_ABSORB ");
+    if (p->history & NO_HIT )           printf("NO_HIT ");
+    if (p->history & RAYLEIGH_SCATTER ) printf("RAYLEIGH_SCATTER ");
+    if (p->history & REFLECT_DIFFUSE )  printf("REFLECT_DIFFUSE ");
+    if (p->history & REFLECT_SPECULAR ) printf("REFLECT_SPECULAR ");
+    if (p->history & SURFACE_REEMIT )   printf("SURFACE_REEMIT ");
+    if (p->history & BULK_REEMIT )      printf("BULK_REEMIT ");
+    if (p->history & SURFACE_TRANSMIT ) printf("SURFACE_TRANSMIT ");
+    if (p->history & SURFACE_ABSORB )   printf("SURFACE_ABSORB ");
+    if (p->history & SURFACE_DETECT )   printf("SURFACE_DETECT ");
+    if (p->history & BULK_ABSORB )      printf("BULK_ABSORB ");
 
-    // if (p.history & NAN_ABORT )      printf("NAN_ABORT "); 
+    // if (p->history & NAN_ABORT )      printf("NAN_ABORT "); 
     unsigned int one = 0x1 ;   // avoids warning: integer conversion resulted in a change of sign
     unsigned int U_NAN_ABORT = one << 31 ;
-    if (p.history & U_NAN_ABORT )      printf("NAN_ABORT ");
+    if (p->history & U_NAN_ABORT )      printf("NAN_ABORT ");
 
     printf("\n");
-#endif
 }
 
-
-
-
-__device__ int
-convert(int c)
+int convert(int c)
 {
     if (c & 0x80)
 	return (0xFFFFFF00 | c);
@@ -164,80 +170,78 @@ convert(int c)
 	return c;
 }
 
-__device__ float
-get_theta(const float3 &a, const float3 &b)
+float get_theta(const float3 *a, const float3 *b)
 {
-    return acosf(fmaxf(-1.0f,fminf(1.0f,dot(a,b))));
+    return acosf(fmaxf(-1.0f,fminf(1.0f,dot(*a,*b))));
 }
 
-__device__ void
-fill_state(State &s, Photon &p, Geometry *g)
+void fill_state(State* s, Photon* p, __local Geometry *g)
 {
+  p->last_hit_triangle = intersect_mesh(&(p->position), &(p->direction), g,
+					&(s->distance_to_boundary), 
+					p->last_hit_triangle);
+  
+  if (p->last_hit_triangle == -1) {
+    s->material1_index = 999;  
+    s->material2_index = 999;  
+    p->history |= NO_HIT;
+    return;
+  }
 
-    p.last_hit_triangle = intersect_mesh(p.position, p.direction, g,
-                                         s.distance_to_boundary, 
-                                         p.last_hit_triangle);
-
-    if (p.last_hit_triangle == -1) {
-        s.material1_index = 999;  
-        s.material2_index = 999;  
-        p.history |= NO_HIT;
-        return;
-    }
-
-    Triangle t = get_triangle(g, p.last_hit_triangle);
-
-    unsigned int material_code = g->material_codes[p.last_hit_triangle];
-
-    int inner_material_index = convert(0xFF & (material_code >> 24));
-    int outer_material_index = convert(0xFF & (material_code >> 16));
-    s.surface_index = convert(0xFF & (material_code >> 8));
-
-    float3 v01 = t.v1 - t.v0;
-    float3 v12 = t.v2 - t.v1;
-
-    s.surface_normal = normalize(cross(v01, v12));
-
-    int material1_index, material2_index ;
-    Material *material1, *material2;
-    if (dot(s.surface_normal,-p.direction) > 0.0f) {
-        // outside to inside
-        material1 = g->materials[outer_material_index];
-        material2 = g->materials[inner_material_index];
-        material1_index = outer_material_index ; 
-        material2_index = inner_material_index ; 
-
-        s.inside_to_outside = false;
-    }
-    else {
-        // inside to outside
-        material1 = g->materials[inner_material_index];
-        material2 = g->materials[outer_material_index];
-        material1_index = inner_material_index; 
-        material2_index = outer_material_index ; 
-        s.surface_normal = -s.surface_normal;
-
-        s.inside_to_outside = true;
-    }
-
-    s.refractive_index1 = interp_property(material1, p.wavelength,
-                                          material1->refractive_index);
-    s.refractive_index2 = interp_property(material2, p.wavelength,
-                                          material2->refractive_index);
-    s.absorption_length = interp_property(material1, p.wavelength,
-                                          material1->absorption_length);
-    s.scattering_length = interp_property(material1, p.wavelength,
-                                          material1->scattering_length);
-    s.reemission_prob = interp_property(material1, p.wavelength,
-                                        material1->reemission_prob);
-
-    s.material1 = material1;
-    s.material1_index = material1_index;  
-    s.material2_index = material2_index;  
+  Triangle t = get_triangle(g, p->last_hit_triangle);
+  
+  unsigned int material_code = g->material_codes[p->last_hit_triangle];
+  
+  int inner_material_index = convert(0xFF & (material_code >> 24));
+  int outer_material_index = convert(0xFF & (material_code >> 16));
+  s->surface_index = convert(0xFF & (material_code >> 8));
+  
+  float3 v01 = t.v1 - t.v0;
+  float3 v12 = t.v2 - t.v1;
+  
+  s->surface_normal = normalize(cross(v01, v12));
+  
+  int material1_index, material2_index ;
+  Material *material1, *material2;
+  if (dot(s->surface_normal,-p->direction) > 0.0f) {
+    // outside to inside
+    //material1 = g->materials[outer_material_index];
+    //material2 = g->materials[inner_material_index];
+    material1_index = outer_material_index ; 
+    material2_index = inner_material_index ; 
+    
+    s->inside_to_outside = false;
+  }
+  else {
+    // inside to outside
+    //material1 = g->materials[inner_material_index];
+    //material2 = g->materials[outer_material_index];
+    material1_index = inner_material_index; 
+    material2_index = outer_material_index ; 
+    s->surface_normal = -s->surface_normal;
+    
+    s->inside_to_outside = true;
+  }
+  
+  s->refractive_index1 = interp_property(material1, p->wavelength,
+					 g->refractive_index[material1_index]);// material1->refractive_index);
+  s->refractive_index2 = interp_property(material2, p->wavelength,
+					 g->refractive_index[material2_index]);//material2->refractive_index);
+  s->absorption_length = interp_property(material1, p->wavelength,
+					 g->absorption_length[material1_index]);//material1->absorption_length);
+  s->scattering_length = interp_property(material1, p->wavelength,
+					 g->scattering_length[material1_index]);//material1->scattering_length);
+  s->reemission_prob = interp_property(material1, p->wavelength,
+				       g->reemission_prob[material1_index]);//material1->reemission_prob);
+  
+  //s->material1 = material1;
+  s->material1_index = material1_index;  
+  s->material2_index = material2_index;  
+  s->mat1_refractive_index = g->refractive_index[material1_index];
+  s->mat1_absorption_length = g->absorption_length[material1_index] 
 } // fill_state
 
-__device__ float3
-pick_new_direction(float3 axis, float theta, float phi)
+float3 pick_new_direction(float3 axis, float theta, float phi)
 {
     // Taken from SNOMAN rayscatter.for
     float cos_theta, sin_theta;
@@ -266,8 +270,7 @@ pick_new_direction(float3 axis, float theta, float phi)
     return make_float3(dirx, diry, dirz);
 }
 
-__device__ void
-rayleigh_scatter(Photon &p, curandState &rng)
+void rayleigh_scatter(Photon *p, __global clrandState *rng)
 {
     float cos_theta = 2.0f*cosf((acosf(1.0f - 2.0f*curand_uniform(&rng))-2*PI)/3.0f);
     if (cos_theta > 1.0f)
@@ -278,61 +281,59 @@ rayleigh_scatter(Photon &p, curandState &rng)
     float theta = acosf(cos_theta);
     float phi = uniform(&rng, 0.0f, 2.0f * PI);
 
-    p.direction = pick_new_direction(p.polarization, theta, phi);
+    p->direction = pick_new_direction(p->polarization, theta, phi);
 
     if (1.0f - fabsf(cos_theta) < 1e-6f) {
-	p.polarization = pick_new_direction(p.polarization, PI/2.0f, phi);
+	p->polarization = pick_new_direction(p->polarization, PI/2.0f, phi);
     }
     else {
 	// linear combination of old polarization and new direction
-	p.polarization = p.polarization - cos_theta * p.direction;
+	p->polarization = p->polarization - cos_theta * p->direction;
     }
 
-    p.direction /= norm(p.direction);
-    p.polarization /= norm(p.polarization);
+    p->direction /= norm(p->direction);
+    p->polarization /= norm(p->polarization);
 } // scatter
 
-__device__
-int propagate_to_boundary(Photon &p, State &s, curandState &rng,
-                          bool use_weights=false, int scatter_first=0)
+int propagate_to_boundary(Photon* p, State* s, __global clrandState* rng, bool use_weights, int scatter_first)
 {
-    float absorption_distance = -s.absorption_length*logf(curand_uniform(&rng));
-    float scattering_distance = -s.scattering_length*logf(curand_uniform(&rng));
+  float absorption_distance = -s->absorption_length*logf(clrand_uniform(rng,0.0,1.0));
+  float scattering_distance = -s->scattering_length*logf(clrand_uniform(rng,0.0,1.0));
 
-    if (use_weights && p.weight > WEIGHT_LOWER_THRESHOLD && s.reemission_prob == 0) // Prevent absorption
-        absorption_distance = 1e30;
-    else
-        use_weights = false;
+  if (use_weights && p->weight > WEIGHT_LOWER_THRESHOLD && s->reemission_prob == 0) // Prevent absorption
+    absorption_distance = 1e30;
+  else
+    use_weights = false;
 
-    if (scatter_first == 1) // Force scatter
+  if (scatter_first == 1) // Force scatter
     {
-        float scatter_prob = 1.0f - expf(-s.distance_to_boundary/s.scattering_length);
+      float scatter_prob = 1.0f - expf(-s->distance_to_boundary/s->scattering_length);
 
-        if (scatter_prob > WEIGHT_LOWER_THRESHOLD) {
-            int i=0;
-            const int max_i = 1000;
-            while (i < max_i && scattering_distance > s.distance_to_boundary) 
-            {
-                scattering_distance = -s.scattering_length*logf(curand_uniform(&rng));
-                i++;
-            }
-            p.weight *= scatter_prob;
-        }
+      if (scatter_prob > WEIGHT_LOWER_THRESHOLD) {
+	int i=0;
+	const int max_i = 1000;
+	while (i < max_i && scattering_distance > s->distance_to_boundary) 
+	  {
+	    scattering_distance = -s->scattering_length*logf(clrand_uniform(rng));
+	    i++;
+	  }
+	p->weight *= scatter_prob;
+      }
     } 
-    else if (scatter_first == -1)  // Prevent scatter
+  else if (scatter_first == -1)  // Prevent scatter
     {
-        float no_scatter_prob = expf(-s.distance_to_boundary/s.scattering_length);
+      float no_scatter_prob = expf(-s->distance_to_boundary/s->scattering_length);
 
-        if (no_scatter_prob > WEIGHT_LOWER_THRESHOLD) {
-            int i=0;
-            const int max_i = 1000;
-            while (i < max_i && scattering_distance <= s.distance_to_boundary) 
-            {
-               scattering_distance = -s.scattering_length*logf(curand_uniform(&rng));
-               i++;
-            }
-            p.weight *= no_scatter_prob;
-        }
+      if (no_scatter_prob > WEIGHT_LOWER_THRESHOLD) {
+	int i=0;
+	const int max_i = 1000;
+	while (i < max_i && scattering_distance <= s->distance_to_boundary) 
+	  {
+	    scattering_distance = -s->scattering_length*logf(clrand_uniform(rng));
+	    i++;
+	  }
+	p->weight *= no_scatter_prob;
+      }
     }
 
     // absorption 
@@ -342,29 +343,29 @@ int propagate_to_boundary(Photon &p, State &s, curandState &rng,
     //
     //  huh, branch BULK_REEMIT(CONTINUE) does not set .last_hit_triangle -1 ?
     //
-    if (absorption_distance <= scattering_distance) {
-        if (absorption_distance <= s.distance_to_boundary) 
-        {
-            p.time += absorption_distance/(SPEED_OF_LIGHT/s.refractive_index1);
-            p.position += absorption_distance*p.direction;
+  if (absorption_distance <= scattering_distance) {
+    if (absorption_distance <= s->distance_to_boundary) 
+      {
+	p->time += absorption_distance/(SPEED_OF_LIGHT/s->refractive_index1);
+	p->position += absorption_distance*p->direction;
 
-            float uniform_sample_reemit = curand_uniform(&rng);
-            if (uniform_sample_reemit < s.reemission_prob) 
-            {
-                p.wavelength = sample_cdf(&rng, s.material1->n, 
-                                          s.material1->wavelength0,
-                                          s.material1->step,
-                                          s.material1->reemission_cdf);
-                p.direction = uniform_sphere(&rng);
-                p.polarization = cross(uniform_sphere(&rng), p.direction);
-                p.polarization /= norm(p.polarization);
-                p.history |= BULK_REEMIT;
+	float uniform_sample_reemit = clrand_uniform(rng,0.0,1.0);
+	if (uniform_sample_reemit < s->reemission_prob) 
+	  {
+	    p->wavelength = sample_cdf(rng, s->material1->n, 
+				       s->material1->wavelength0,
+				       s->material1->step,
+				       s->material1->reemission_cdf);
+                p->direction = uniform_sphere(&rng);
+                p->polarization = cross(uniform_sphere(&rng), p->direction);
+                p->polarization /= norm(p->polarization);
+                p->history |= BULK_REEMIT;
                 return CONTINUE;
             } // photon is reemitted isotropically
             else 
             {
-                p.last_hit_triangle = -1;
-                p.history |= BULK_ABSORB;
+                p->last_hit_triangle = -1;
+                p->history |= BULK_ABSORB;
                 return BREAK;
             } // photon is absorbed in material1
         }
@@ -377,16 +378,16 @@ int propagate_to_boundary(Photon &p, State &s, curandState &rng,
         if (scattering_distance <= s.distance_to_boundary) {
 
             // Scale weight by absorption probability along this distance
-            if (use_weights) p.weight *= expf(-scattering_distance/s.absorption_length);
+            if (use_weights) p->weight *= expf(-scattering_distance/s.absorption_length);
 
-            p.time += scattering_distance/(SPEED_OF_LIGHT/s.refractive_index1);
-            p.position += scattering_distance*p.direction;
+            p->time += scattering_distance/(SPEED_OF_LIGHT/s.refractive_index1);
+            p->position += scattering_distance*p->direction;
 
             rayleigh_scatter(p, rng);
 
-            p.history |= RAYLEIGH_SCATTER;
+            p->history |= RAYLEIGH_SCATTER;
 
-            p.last_hit_triangle = -1;
+            p->last_hit_triangle = -1;
 
             return CONTINUE;
         } // photon is scattered in material1
@@ -394,12 +395,12 @@ int propagate_to_boundary(Photon &p, State &s, curandState &rng,
 
 
     // Scale weight by absorption probability along this distance
-    if (use_weights) p.weight *= expf(-s.distance_to_boundary/s.absorption_length);
+    if (use_weights) p->weight *= expf(-s.distance_to_boundary/s.absorption_length);
 
     //  Survive to boundary(PASS)  .position .time advanced to boundary 
     //
-    p.position += s.distance_to_boundary*p.direction;
-    p.time += s.distance_to_boundary/(SPEED_OF_LIGHT/s.refractive_index1);
+    p->position += s.distance_to_boundary*p->direction;
+    p->time += s.distance_to_boundary/(SPEED_OF_LIGHT/s.refractive_index1);
 
     return PASS;
 

@@ -115,9 +115,15 @@ def copy_to_float3( arr, f3arr ):
 
 def to_uint3(arr):
     "Returns a vec.uint3 array from an (N,3) array."
-    if not arr.flags['C_CONTIGUOUS']:
-        arr = np.asarray(arr, order='c')
-    return arr.astype(np.uint32).view(ga.vec.uint3)[:,0]
+    if gpuapi.is_gpu_api_cuda():
+        if not arr.flags['C_CONTIGUOUS']:
+            arr = np.asarray(arr, order='c')
+        return arr.astype(np.uint32).view(ga.vec.uint3)[:,0]
+    elif gpuapi.is_gpu_api_opencl():
+        n = len(arr)
+        pad = np.zeros( (n,1), dtype=arr.dtype )
+        arr_wpad = np.hstack( (arr, pad) )
+        return arr_wpad.astype(np.uint32).view(ga.vec.uint3)[:,0]
 
 def copy_to_uint3( arr, ui3arr ):
     if not arr.flags['C_CONTIGUOUS']:

@@ -1,7 +1,7 @@
 #ifndef __LINALG_H__
 #define __LINALG_H__
 
-// OpenCL has native support for these functions I think
+// OpenCL has native support for all of these functions
 /* float3 operator- (const float3 &a) */
 /* { */
 /*     return make_float3(-a.x, -a.y, -a.z); */

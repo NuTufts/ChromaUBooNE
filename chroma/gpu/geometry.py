@@ -35,7 +35,10 @@ class Metadata(OrderedDict):
 
     def array(self, prefix, arr):
         self['%s_nbytes' % prefix] = arr.nbytes
-        self['%s_itemsize' % prefix] = arr.itemsize
+        try:
+            self['%s_itemsize' % prefix] = arr.itemsize
+        except:
+            pass
         self['%s_count' % prefix] = len(arr)
 
     def __call__(self, tag, description):
@@ -104,12 +107,10 @@ class GPUGeometry(object):
             self.vertices[:] = to_float3(geometry.mesh.vertices)
             self.triangles[:] = to_uint3(geometry.mesh.triangles)
         elif api.is_gpu_api_opencl():
-            self.vertices = np.empty( len(geometry.mesh.vertices), dtype=ga.vec.float3 )
-            copy_to_float3( geometry.mesh.vertices, self.vertices ) 
-            self.vertices_gpu = ga.to_device(cl_queue, self.vertices)
-            self.triangles = np.empty( len(geometry.mesh.triangles), dtype=ga.vec.uint3 )
-            copy_to_uint3( geometry.mesh.triangles, self.triangles )
-            self.triangles_gpu = ga.to_device(cl_queue, self.triangles )
+            self.vertices = ga.empty( cl_queue, len(geometry.mesh.vertices), dtype=ga.vec.float3 )
+            self.triangles = ga.empty( cl_queue, len(geometry.mesh.triangles), dtype=ga.vec.uint3 )
+            self.vertices[:] = to_float3( geometry.mesh.vertices )
+            self.triangles[:] = to_uint3( geometry.mesh.triangles )
         
         if api.is_gpu_api_cuda():
             self.world_origin = ga.vec.make_float3(*geometry.bvh.world_coords.world_origin)
@@ -161,6 +162,7 @@ class GPUGeometry(object):
             max(int((gpu_free - min_free_gpu_mem) / geometry.bvh.nodes.itemsize),100),
             n_nodes
             )
+        print "split index=",split_index," vs. total nodes=",n_nodes
  
         # push nodes to GPU
         if api.is_gpu_api_cuda():
@@ -175,7 +177,7 @@ class GPUGeometry(object):
                                             dtype=geometry.bvh.nodes.dtype,
                                             write_combined=True)
         elif api.is_gpu_api_opencl():
-            self.extra_nodes = np.empty( shape=n_extra, dtype=geometry.bvh.nodes.dtype )
+            self.extra_nodes = ga.empty( cl_queue, shape=n_extra, dtype=geometry.bvh.nodes.dtype )
 
         if split_index < n_nodes:
             log.info('Splitting BVH between GPU and CPU memory at node %d' % split_index)
@@ -193,9 +195,8 @@ class GPUGeometry(object):
         self.metadata['d_extra_nodes_count'] = n_extra
         self.metadata['d_splitting'] = splitting
         self.print_device_usage(cl_context=cl_context)
-        pass
-    
-        # See if there is enough memory to put the and/or triangles back on the GPU
+
+        # CUDA See if there is enough memory to put the vertices and/or triangles back on the GPU
         if api.is_gpu_api_cuda():
             gpu_free, gpu_total = cuda.mem_get_info()
         elif api.is_gpu_api_opencl():
@@ -212,7 +213,7 @@ class GPUGeometry(object):
                 ftriangles_gpu = 0
         elif api.is_gpu_api_opencl():
             if self.triangles.nbytes < (gpu_free - min_free_gpu_mem):
-                self.triangles_gpu = ga.to_device(cl_queue,self.triangles)
+                #self.triangles = ga.to_device(cl_queue,self.triangles)
                 log.info('Optimization: Sufficient memory to move triangles onto GPU')
                 ftriangles_gpu = 1
             else:
@@ -222,38 +223,76 @@ class GPUGeometry(object):
         self.metadata('e',"after triangles")
         self.metadata['e_triangles_gpu'] = ftriangles_gpu
 
-        #gpu_free, gpu_total = cuda.mem_get_info()
-        #self.metadata.array('f_vertices', self.vertices )
-        #if self.vertices.nbytes < (gpu_free - min_free_gpu_mem):
-        #    self.vertices = ga.to_gpu(self.vertices)
-        #    log.info('Optimization: Sufficient memory to move vertices onto GPU')
-        #    vertices_gpu = 1
-        #else:
-        #    log.warn('using host mapped memory vertices')
-        #    vertices_gpu = 0
-        #pass 
-        #self.metadata('f',"after vertices")
-        #self.metadata['f_vertices_gpu'] = vertices_gpu
+        if api.is_gpu_api_cuda():
+            gpu_free, gpu_total = cuda.mem_get_info()
+        elif api.is_gpu_api_opencl():
+            gpu_total = self.metadata['gpu_total']
+            gpu_free = gpu_total-self.metadata['d_gpu_used']
+
+        self.metadata.array('f_vertices', self.vertices )
+
+        if api.is_gpu_api_cuda():
+            if self.vertices.nbytes < (gpu_free - min_free_gpu_mem):
+                self.vertices = ga.to_gpu(self.vertices)
+                log.info('Optimization: Sufficient memory to move vertices onto GPU')
+                vertices_gpu = 1
+            else:
+                log.warn('using host mapped memory vertices')
+                vertices_gpu = 0
+        elif api.is_gpu_api_opencl():
+            if self.vertices.nbytes < (gpu_free - min_free_gpu_mem):
+                #self.vertices = ga.to_gpu(self.vertices)
+                log.info('Optimization: Sufficient memory to move vertices onto GPU')
+                vertices_gpu = 1
+            else:
+                log.warn('using host mapped memory vertices')
+                vertices_gpu = 0
+
+        self.metadata('f',"after vertices")
+        self.metadata['f_vertices_gpu'] = vertices_gpu
         
-        #self.gpudata = make_gpu_struct(geometry_struct_size,
-        #                               [Mapped(self.vertices), 
-        #                                Mapped(self.triangles),
-        #                                self.material_codes,
-        #                                self.colors, self.nodes,
-        #                                Mapped(self.extra_nodes),
-        #                                self.material_pointer_array,
-        #                                self.surface_pointer_array,
-        #                                self.world_origin,
-        #                                self.world_scale,
-        #                                np.int32(len(self.nodes))])
-        #
-        #self.geometry = geometry
-        #
-        #if print_usage:
-        #    self.print_device_usage()
-        #log.info(self.device_usage_str())
-        #
-        #self.metadata('g',"after geometry struct")
+        if api.is_gpu_api_cuda():
+            self.gpudata = make_gpu_struct(geometry_struct_size,
+                                           [Mapped(self.vertices), 
+                                            Mapped(self.triangles),
+                                            self.material_codes,
+                                            self.colors, self.nodes,
+                                            Mapped(self.extra_nodes),
+                                            self.material_pointer_array,
+                                            self.surface_pointer_array,
+                                            self.world_origin,
+                                            self.world_scale,
+                                            np.int32(len(self.nodes))])
+            self.geometry = geometry
+        elif api.is_gpu_api_opencl():
+            # No relevant way to pass struct into OpenCL kernel. We have to pass everything by arrays
+            # We then build a geometry struct later in the kernel
+            # provided below is example/test of passing the data
+            if True: # for debuggin
+            #if False: #
+                print "loading geometry_structs.cl"
+                geostructsmod = cltools.get_cl_module( "geometry_structs.cl", cl_context, options=cltools.cl_options, include_source_directory=True )
+                geostructsfunc = GPUFuncs( geostructsmod )
+                geostructsfunc.make_geostruct( cl_queue, (1,), None,
+                                               self.vertices.data, self.triangles.data,
+                                               self.material_codes.data, self.colors.data,
+                                               self.nodes.data, self.extra_nodes.data,
+                                               np.int32(len(geometry.unique_materials)),
+                                               self.material_data['refractive_index'].data, self.material_data['absorption_length'].data,
+                                               self.material_data['scattering_length'].data, self.material_data['reemission_prob'].data,
+                                               self.material_data['reemission_cdf'].data,
+                                               np.int32(len(geometry.unique_surfaces)),
+                                               self.surface_data['detect'].data, self.surface_data['absorb'].data, self.surface_data['reemit'].data,
+                                               self.surface_data['reflect_diffuse'].data, self.surface_data['reflect_specular'].data,
+                                               self.surface_data['eta'].data, self.surface_data['k'].data, self.surface_data['reemission_cdf'].data,
+                                               self.surface_data['model'].data, self.surface_data['transmissive'].data, self.surface_data['thickness'].data,
+                                               self.world_origin, self.world_scale, np.int32( len(self.nodes) ),
+                                               self.material_data['n'], self.material_data['step'], self.material_data["wavelength0"] )
+                self.material_codes.get()
+        if print_usage:
+            self.print_device_usage(cl_context=cl_context)
+        log.info(self.device_usage_str(cl_context=cl_context))
+        self.metadata('g',"after geometry struct")
 
 
     def _interp_material_property( self, wavelengths, property ):
@@ -347,11 +386,11 @@ class GPUGeometry(object):
             materials_reemission_prob[i]   = self._interp_material_property(wavelengths, material.reemission_prob)
             materials_reemission_cdf[i]    = self._interp_material_property(wavelengths, material.reemission_cdf)
 
-        material_data["refractive_index"]  = ga.to_device(queue, materials_refractive_index)
-        material_data["absorption_length"] = ga.to_device(queue, materials_absorption_length)
-        material_data["scattering_length"] = ga.to_device(queue, materials_scattering_length)
-        material_data["reemission_prob"]   = ga.to_device(queue, materials_reemission_prob)
-        material_data["reemission_cdf"]    = ga.to_device(queue, materials_reemission_cdf)
+        material_data["refractive_index"]  = ga.to_device(queue, materials_refractive_index.ravel() )
+        material_data["absorption_length"] = ga.to_device(queue, materials_absorption_length.ravel() )
+        material_data["scattering_length"] = ga.to_device(queue, materials_scattering_length.ravel() )
+        material_data["reemission_prob"]   = ga.to_device(queue, materials_reemission_prob.ravel() )
+        material_data["reemission_cdf"]    = ga.to_device(queue, materials_reemission_cdf.ravel() )
         material_data["n"]                 = np.uint32(nwavelengths)
         material_data["step"]              = np.float32(wavelength_step)
         material_data["wavelength0"]       = np.float32(wavelengths[0])
@@ -456,17 +495,17 @@ class GPUGeometry(object):
             transmissive[i] = np.uint32(surface.transmissive)
             thickness[i] = np.float32(surface.thickness)
             
-        surface_data["detect"]           = ga.to_device( queue, detect )
-        surface_data["absorb"]           = ga.to_device( queue, absorb )
-        surface_data["reemit"]           = ga.to_device( queue, reemit )
-        surface_data["reflect_diffuse"]  = ga.to_device( queue, reflect_diffuse )
-        surface_data["reflect_specular"] = ga.to_device( queue, reflect_specular )
-        surface_data["eta"]              = ga.to_device( queue, eta )
-        surface_data["k"]                = ga.to_device( queue, k )
-        surface_data["reemission_cdf"]   = ga.to_device( queue, reemission_cdf )
-        surface_data["model"]            = ga.to_device( queue, model )
-        surface_data["transmissive"]     = ga.to_device( queue, transmissive )
-        surface_data["thickness"]        = ga.to_device( queue, thickness )
+        surface_data["detect"]           = ga.to_device( queue, detect.ravel() )
+        surface_data["absorb"]           = ga.to_device( queue, absorb.ravel() )
+        surface_data["reemit"]           = ga.to_device( queue, reemit.ravel() )
+        surface_data["reflect_diffuse"]  = ga.to_device( queue, reflect_diffuse.ravel() )
+        surface_data["reflect_specular"] = ga.to_device( queue, reflect_specular.ravel() )
+        surface_data["eta"]              = ga.to_device( queue, eta.ravel() )
+        surface_data["k"]                = ga.to_device( queue, k.ravel() )
+        surface_data["reemission_cdf"]   = ga.to_device( queue, reemission_cdf.ravel() )
+        surface_data["model"]            = ga.to_device( queue, model.ravel() )
+        surface_data["transmissive"]     = ga.to_device( queue, transmissive.ravel() )
+        surface_data["thickness"]        = ga.to_device( queue, thickness.ravel() )
         surface_data["n"]                = np.uint32(nwavelengths)
         surface_data["step"]             = np.float32(wavelength_step)
         surface_data["wavelength0"]      = np.float32(wavelengths[0])

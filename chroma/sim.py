@@ -27,7 +27,7 @@ else:
 def pick_seed():
     """Returns a seed for a random number generator selected using
     a mixture of the current time and the current process ID."""
-    return int(time.time()) ^ (os.getpid() << 16)
+    return int(time.time()) ^ (os.getpid() << 16) & 0xffffffff;
 
 class Simulation(object):
     def __init__(self, detector, seed=None, cuda_device=None, cl_device=None,
@@ -39,6 +39,7 @@ class Simulation(object):
 
         if seed is None:
             self.seed = pick_seed()
+            print "auto picked seed of ",self.seed
         else:
             self.seed = seed
 
