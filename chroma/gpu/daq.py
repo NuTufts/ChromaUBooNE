@@ -13,7 +13,7 @@ elif api.is_gpu_api_opencl():
 else:
     raise RuntimeError('API neither CUDA or OpenCL')
 
-from chroma.gpu.tools import chunk_iterator
+from chroma.gpu.tools import chunk_iterator, api_options
 from chroma.gpu.gpufuncs import GPUFuncs
 from chroma import event
 
@@ -46,21 +46,31 @@ class GPUChannels(object):
         return self.t.size
 
 class GPUDaq(object):
-    def __init__(self, gpu_detector, ndaq=1):
-        self.earliest_time_gpu = ga.empty(gpu_detector.nchannels*ndaq, dtype=np.float32)
-        self.earliest_time_int_gpu = ga.empty(gpu_detector.nchannels*ndaq, dtype=np.uint32)
-        self.channel_history_gpu = ga.zeros_like(self.earliest_time_int_gpu)
-        self.channel_q_int_gpu = ga.zeros_like(self.earliest_time_int_gpu)
-        self.channel_q_gpu = ga.zeros(len(self.earliest_time_int_gpu), dtype=np.float32)
-        self.detector_gpu = gpu_detector.detector_gpu
-        self.solid_id_map_gpu = gpu_detector.solid_id_map
-        self.solid_id_to_channel_index_gpu = gpu_detector.solid_id_to_channel_index_gpu
+    def __init__(self, gpu_detector, ndaq=1, cl_context=None, cl_queue=None ):
+        if api.is_gpu_api_cuda():
+            self.earliest_time_gpu = ga.empty(gpu_detector.nchannels*ndaq, dtype=np.float32)
+            self.earliest_time_int_gpu = ga.empty(gpu_detector.nchannels*ndaq, dtype=np.uint32)
+            self.channel_history_gpu = ga.zeros_like(self.earliest_time_int_gpu)
+            self.channel_q_int_gpu = ga.zeros_like(self.earliest_time_int_gpu)
+            self.channel_q_gpu = ga.zeros(len(self.earliest_time_int_gpu), dtype=np.float32)
+            self.detector_gpu = gpu_detector.detector_gpu
+            self.module = cutools.get_cu_module('daq.cu', options=api_options, include_source_directory=True)
+        elif api.is_gpu_api_opencl():
+            self.earliest_time_gpu     = ga.empty(cl_queue, gpu_detector.nchannels*ndaq, dtype=np.float32)
+            self.earliest_time_int_gpu = ga.empty(cl_queue, gpu_detector.nchannels*ndaq, dtype=np.uint32)
+            self.channel_history_gpu   = ga.zeros_like(self.earliest_time_int_gpu)
+            self.channel_q_int_gpu     = ga.zeros_like(self.earliest_time_int_gpu)
+            self.channel_q_gpu         = ga.zeros(cl_queue, len(self.earliest_time_int_gpu), dtype=np.float32)
+            #self.detector_gpu          = gpu_detector.detector_gpu # struct not made in opencl mode
+            self.module                = cltools.get_cl_module('daq.cl', cl_context, options=api_options, include_source_directory=True)
+        else:
+            raise RuntimeError("GPU API is neither CUDA nor OpenCL")
 
-        self.module = get_cu_module('daq.cu', options=cuda_options, 
-                                    include_source_directory=True)
-        self.gpu_funcs = GPUFuncs(self.module)
-        self.ndaq = ndaq
-        self.stride = gpu_detector.nchannels
+        self.solid_id_map_gpu              = gpu_detector.solid_id_map
+        self.solid_id_to_channel_index_gpu = gpu_detector.solid_id_to_channel_index_gpu
+        self.gpu_funcs                     = GPUFuncs(self.module)
+        self.ndaq                          = ndaq
+        self.stride                        = gpu_detector.nchannels
 
     def begin_acquire(self, nthreads_per_block=64):
         self.gpu_funcs.reset_earliest_time_int(np.float32(1e9), np.int32(len(self.earliest_time_int_gpu)), self.earliest_time_int_gpu, block=(nthreads_per_block,1,1), grid=(len(self.earliest_time_int_gpu)//nthreads_per_block+1,1))

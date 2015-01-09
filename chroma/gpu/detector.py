@@ -22,33 +22,43 @@ logger = logging.getLogger(__name__)
 
 
 class GPUDetector(GPUGeometry):
-    def __init__(self, detector, wavelengths=None, print_usage=False):
-        GPUGeometry.__init__(self, detector, wavelengths=wavelengths, print_usage=False)
+    def __init__(self, detector, wavelengths=None, print_usage=False, cl_context=None, cl_queue=None):
+        GPUGeometry.__init__(self, detector, wavelengths=wavelengths, print_usage=False, cl_context=cl_context, cl_queue=cl_queue)
 
-        self.solid_id_to_channel_index_gpu = \
-            ga.to_gpu(detector.solid_id_to_channel_index.astype(np.int32))
-        self.solid_id_to_channel_id_gpu = \
-            ga.to_gpu(detector.solid_id_to_channel_id.astype(np.int32))
+        if api.is_gpu_api_cuda():
+            self.solid_id_to_channel_index_gpu = \
+                ga.to_gpu(detector.solid_id_to_channel_index.astype(np.int32))
+            self.solid_id_to_channel_id_gpu = \
+                ga.to_gpu(detector.solid_id_to_channel_id.astype(np.int32))
 
-        self.nchannels = detector.num_channels()
+            self.nchannels = detector.num_channels()
 
 
-        self.time_cdf_x_gpu = ga.to_gpu(detector.time_cdf[0].astype(np.float32))
-        self.time_cdf_y_gpu = ga.to_gpu(detector.time_cdf[1].astype(np.float32))
+            self.time_cdf_x_gpu = ga.to_gpu(detector.time_cdf[0].astype(np.float32))
+            self.time_cdf_y_gpu = ga.to_gpu(detector.time_cdf[1].astype(np.float32))
 
-        self.charge_cdf_x_gpu = ga.to_gpu(detector.charge_cdf[0].astype(np.float32))
-        self.charge_cdf_y_gpu = ga.to_gpu(detector.charge_cdf[1].astype(np.float32))
+            self.charge_cdf_x_gpu = ga.to_gpu(detector.charge_cdf[0].astype(np.float32))
+            self.charge_cdf_y_gpu = ga.to_gpu(detector.charge_cdf[1].astype(np.float32))
 
-        detector_source = get_cu_source('detector.h')
-        detector_struct_size = characterize.sizeof('Detector', detector_source)
-        self.detector_gpu = make_gpu_struct(detector_struct_size,
-                                            [self.solid_id_to_channel_index_gpu,
-                                             self.time_cdf_x_gpu,
-                                             self.time_cdf_y_gpu,
-                                             self.charge_cdf_x_gpu,
-                                             self.charge_cdf_y_gpu,
-                                             np.int32(self.nchannels),
-                                             np.int32(len(detector.time_cdf[0])),
-                                             np.int32(len(detector.charge_cdf[0])),
-                                             np.float32(detector.charge_cdf[0][-1] / 2**16)])
-                                             
+            detector_source = get_cu_source('detector.h')
+            detector_struct_size = characterize.sizeof('Detector', detector_source)
+            self.detector_gpu = make_gpu_struct(detector_struct_size,
+                                                [self.solid_id_to_channel_index_gpu,
+                                                 self.time_cdf_x_gpu,
+                                                 self.time_cdf_y_gpu,
+                                                 self.charge_cdf_x_gpu,
+                                                 self.charge_cdf_y_gpu,
+                                                 np.int32(self.nchannels),
+                                                 np.int32(len(detector.time_cdf[0])),
+                                                 np.int32(len(detector.charge_cdf[0])),
+                                                 np.float32(detector.charge_cdf[0][-1] / 2**16)])
+        elif api.is_gpu_api_opencl():
+            self.solid_id_to_channel_index_gpu = ga.to_device( cl_queue, detector.solid_id_to_channel_index.astype(np.int32) )
+            self.solid_id_to_channel_id_gpu    = ga.to_device( cl_queue, detector.solid_id_to_channel_id.astype(np.int32) )
+            self.nchannels = detector.num_channels()
+            self.time_cdf_x_gpu   = ga.to_device( cl_queue, detector.time_cdf[0].astype(np.float32) )
+            self.time_cdf_y_gpu   = ga.to_device( cl_queue, detector.time_cdf[1].astype(np.float32) )
+            self.charge_cdf_x_gpu = ga.to_device( cl_queue, detector.charge_cdf[0].astype(np.float32) )
+            self.charge_cdf_y_gpu = ga.to_device( cl_queue, detector.charge_cdf[1].astype(np.float32) )
+        else:
+            raise RuntimeError("GPU API is neither OpenCL nor CUDA")

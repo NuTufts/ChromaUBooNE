@@ -63,8 +63,8 @@ class Simulation(object):
             self.context = cltools.create_cl_context( cl_device )
             self.clqueue = cl.CommandQueue( self.context )
             if hasattr(detector, 'num_channels'):
-                self.gpu_geometry = GPUDetector(detector, cl_context=self.context, cl_queue=self.clqueue)
-                self.gpu_daq = GPUDaq(self.gpu_geometry)
+                self.gpu_geometry = GPUDetector( detector, cl_context=self.context, cl_queue=self.clqueue )
+                self.gpu_daq = GPUDaq( self.gpu_geometry, cl_context=self.context, cl_queue=self.clqueue )
                 self.gpu_pdf = GPUPDF()
                 self.gpu_pdf_kernel = GPUKernelPDF()
             else:

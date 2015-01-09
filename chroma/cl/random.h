@@ -17,6 +17,7 @@ float clrand_uniform(__global clrandState *s, float low, float high);
 float sample_cdf(__global clrandState *rng, int ncdf, __global float *cdf_x, __global float *cdf_y);
 float sample_cdf_interp(__global clrandState *rng, int ncdf, float x0, float delta, __global float *cdf_y);
 float3 uniform_sphere(__global clrandState *s);
+float clrand_normal( __global clrandState* s );
 
 float clrand_uniform(__global clrandState *s, float low, float high)
 {
@@ -44,6 +45,14 @@ float3 uniform_sphere(__global clrandState *s)
 
   return make_float3(c*cos(theta), c*sin(theta), u); 
 } 
+
+float clrand_normal( __global clrandState* s ) {
+  float x1 = clrand_uniform( s, 0.0f, 1.0f );
+  float x2 = clrand_uniform( s, 0.0f, 1.0f );
+  float y1 = sqrt( -2*native_log(x1) )*cos( 2.0f*M_PI_F*x2 );
+  //y2 = sqrt( -2*native_log(x1) )*sin( 2.0f*M_PI_F*x2 );
+  return y1;
+}
 
  // Draw a random sample given a cumulative distribution function */
  // Assumptions: ncdf >= 2, cdf_y[0] is 0.0, and cdf_y[ncdf-1] is 1.0 */
