@@ -97,12 +97,12 @@ uint3 quantize3(float3 v, float3 world_origin, float world_scale)
 
 uint3 quantize3_cyl(float3 v, float3 world_origin, float world_scale)
 {
-  float3 rescaled_v = (v - world_origin) / world_scale / sqrtf(3.0f); 
+  float3 rescaled_v = (v - world_origin) / world_scale / sqrt(3.0f); 
   unsigned int z = rescaled_v.z;
   rescaled_v.z = 0.0f;
   //unsigned int rho = (unsigned int) norm(rescaled_v);
   unsigned int rho = (unsigned int) length(rescaled_v); // using opencl native
-  unsigned int phi = (unsigned int) ((atan2f(v.y, v.x)/PI/2.0f + 1.0f) * 65535.0f);
+  unsigned int phi = (unsigned int) ((atan2(v.y, v.x)/PI/2.0f + 1.0f) * 65535.0f);
 
   return make_uint3(rho, phi, z);
 }
@@ -114,10 +114,10 @@ uint3 quantize3_sph(float3 v, float3 world_origin, float world_scale)
   //unsigned int r = (unsigned int) (norm(rescaled_v) / sqrt(3.0f));
   unsigned int r = (unsigned int) (length(rescaled_v) / sqrt(3.0f)); // switching to opencl native
 
-  unsigned int phi = (unsigned int) ((atan2f(rescaled_v.y, rescaled_v.x)/PI/2.0f + 1.0f) * 65535.0f);
+  unsigned int phi = (unsigned int) ((atan2(rescaled_v.y, rescaled_v.x)/PI/2.0f + 1.0f) * 65535.0f);
   
   //unsigned int theta = (unsigned int) (acosf(rescaled_v.z / norm(rescaled_v)) / PI * 65535.0f);
-  unsigned int theta = (unsigned int) (acosf(rescaled_v.z / length(rescaled_v)) / PI * 65535.0f); // switching to opencl native
+  unsigned int theta = (unsigned int) (acos(rescaled_v.z / length(rescaled_v)) / PI * 65535.0f); // switching to opencl native
  
   return make_uint3(r, theta, phi);
 }

@@ -6,6 +6,6 @@ float clCargf (cfloat_t x);
 
 float clCargf (cfloat_t x)
 {
-    return atan2f(x.y, x.x);
+    return atan2(x.y, x.x);
 }
 

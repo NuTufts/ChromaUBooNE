@@ -31,7 +31,7 @@ class TestPropagation(unittest.TestCase):
         sim = Simulation(geo, geant4_processes=0)
 
         # Create initial photons
-        nphotons = 10000
+        nphotons = 10
         pos = np.tile([0,0,0], (nphotons,1)).astype(np.float32)
         dir = np.tile([0,0,1], (nphotons,1)).astype(np.float32)
         pol = np.zeros_like(pos)

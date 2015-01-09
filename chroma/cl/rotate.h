@@ -17,8 +17,8 @@ Matrix identity_matrix( const float c) {
 
 Matrix make_rotation_matrix(float phi, const float3 *n)
 {
-  float cos_phi = cosf(phi);
-  float sin_phi = sinf(phi);
+  float cos_phi = cos(phi);
+  float sin_phi = sin(phi);
   Matrix I = identity_matrix( cos_phi );
   Matrix m1 = outer(n,n);
   scale( &m1, 1-cos_phi );
@@ -35,8 +35,8 @@ Matrix make_rotation_matrix(float phi, const float3 *n)
    through an angle `phi` about the axis `n`. */
 float3 rotate_with_vec(const float3 *a, float phi, const float3 *n)
 {
-    float cos_phi = cosf(phi);
-    float sin_phi = sinf(phi);
+    float cos_phi = cos(phi);
+    float sin_phi = sin(phi);
     float3 v = (*a)*cos_phi;
     v += (*n)*dot(*a,*n)*(1.0f-cos_phi);
     v += cross(*a,*n)*sin_phi;

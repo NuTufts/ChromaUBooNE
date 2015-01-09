@@ -178,12 +178,12 @@ __kernel void propagate( int first_photon, int nthreads,
       break;
     }
     
-    //fill_state(&s, &p, &sg);
+    fill_state(&s, &p, &sg);
     
     if (p.last_hit_triangle == -1)
       break;
     
-    //command = propagate_to_boundary(&p, &s, rng, use_weights, scatter_first);
+    command = propagate_to_boundary(&p, &s, rng, use_weights, scatter_first);
     scatter_first = 0; // Only use the scatter_first value once
     
     if (command == BREAK)
@@ -193,7 +193,7 @@ __kernel void propagate( int first_photon, int nthreads,
       continue;
     
     if (s.surface_index != -1) {
-      //command = propagate_at_surface(&p, &s, rng, &sg, use_weights);
+      command = propagate_at_surface(&p, &s, rng, &sg, use_weights);
       
       if (command == BREAK)
 	break;
@@ -202,7 +202,7 @@ __kernel void propagate( int first_photon, int nthreads,
 	continue;
     }
     
-    //propagate_at_boundary(&p, &s, rng);
+    propagate_at_boundary(&p, &s, rng);
     
   } // while (steps < max_steps)
   

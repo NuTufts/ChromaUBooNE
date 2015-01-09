@@ -70,7 +70,7 @@ class GPUPhotons(object):
             module = get_module('propagate.cl', cl_context, options=api_options, include_source_directory=True)
         self.gpu_funcs = GPUFuncs(module)
 
-        raise RuntimeError('bail')
+
 
         # Replicate the photons to the rest of the slots if needed
         if ncopies > 1:
@@ -85,6 +85,7 @@ class GPUPhotons(object):
                                                 np.int32(nphotons),
                                                 block=(nthreads_per_block,1,1), grid=(blocks, 1))
 
+        raise RuntimeError('bail')
 
         # Save the duplication information for the iterate_copies() method
         self.true_nphotons = nphotons
