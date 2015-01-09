@@ -273,7 +273,7 @@ class GPUGeometry(object):
                 print "loading geometry_structs.cl"
                 geostructsmod = cltools.get_cl_module( "geometry_structs.cl", cl_context, options=cltools.cl_options, include_source_directory=True )
                 geostructsfunc = GPUFuncs( geostructsmod )
-                geostructsfunc.make_geostruct( cl_queue, (1,), None,
+                geostructsfunc.make_geostruct( cl_queue, (3,), None,
                                                self.vertices.data, self.triangles.data,
                                                self.material_codes.data, self.colors.data,
                                                self.nodes.data, self.extra_nodes.data,
@@ -288,7 +288,9 @@ class GPUGeometry(object):
                                                self.surface_data['model'].data, self.surface_data['transmissive'].data, self.surface_data['thickness'].data,
                                                self.world_origin, self.world_scale, np.int32( len(self.nodes) ),
                                                self.material_data['n'], self.material_data['step'], self.material_data["wavelength0"] )
+                cl_queue.finish()
                 self.material_codes.get()
+                raise RuntimeError('bail')
         if print_usage:
             self.print_device_usage(cl_context=cl_context)
         log.info(self.device_usage_str(cl_context=cl_context))

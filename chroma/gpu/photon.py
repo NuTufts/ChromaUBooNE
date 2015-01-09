@@ -149,8 +149,10 @@ class GPUPhotons(object):
         elif api.is_gpu_api_opencl():
             output_queue_gpu = ga.to_device(comqueue,output_queue)
 
-        print input_queue_gpu.get()
-        print output_queue
+        if use_weights:
+            iuse_weights = 1
+        else:
+            iuse_weights = 0
 
         while step < max_steps:
             # Just finish the rest of the steps if the # of photons is low
@@ -165,7 +167,7 @@ class GPUPhotons(object):
                     self.gpu_funcs.propagate(np.int32(first_photon), np.int32(photons_this_round), 
                                              input_queue_gpu[1:], output_queue_gpu, rng_states, 
                                              self.pos, self.dir, self.wavelengths, self.pol, self.t, self.flags, self.last_hit_triangles, 
-                                             self.weights, np.int32(nsteps), np.int32(use_weights), np.int32(scatter_first), 
+                                             self.weights, np.int32(nsteps), np.int32(iuse_weights), np.int32(scatter_first), 
                                              gpu_geometry.gpudata, block=(nthreads_per_block,1,1), grid=(blocks, 1))
                 elif api.is_gpu_api_opencl():
                     self.gpu_funcs.propagate( comqueue, (nthreads_per_block,1,1), (blocks, 1,1),
@@ -174,7 +176,7 @@ class GPUPhotons(object):
                                               rng_states.data, 
                                               self.pos.data, self.dir.data, self.wavelengths.data, self.pol.data, self.t.data, 
                                               self.flags.data, self.last_hit_triangles.data, self.weights.data,
-                                              np.int32(nsteps), np.int32(use_weights), np.int32(scatter_first),
+                                              np.int32(nsteps), np.int32(iuse_weights), np.int32(scatter_first),
                                               gpu_geometry.world_scale, gpu_geometry.world_origin, np.int32(len(gpu_geometry.nodes)),
                                               gpu_geometry.material_data['n'], gpu_geometry.material_data['step'], gpu_geometry.material_data["wavelength0"],
                                               gpu_geometry.vertices.data, gpu_geometry.triangles.data,

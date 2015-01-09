@@ -109,6 +109,7 @@ int propagate_at_diffuse_reflector(Photon *p, State *s, __global clrandState *rn
 int propagate_complex(Photon *p, State *s, __global clrandState *rng, Surface* surface, bool use_weights);
 int propagate_at_wls(Photon *p, State *s, __global clrandState *rng, Surface *surface, bool use_weights);
 int propagate_at_surface(Photon *p, State *s, __global clrandState *rng, __local Geometry *geometry, bool use_weights);
+void sdump( State* s );
 
 // -----------------------------------------------------------------
 // definitions
@@ -170,6 +171,28 @@ void pdump( Photon* p, int photon_id, int status, int steps, int command, int sl
     printf("\n");
 }
 
+void sdump( State* s ) {
+  printf("-------------------\n");
+  printf("State Information\n");
+  if (s->inside_to_outside)
+    printf("  inside to outside: True\n");
+  else
+    printf("  inside to outside: False\n");
+  printf("  surface normal: (%.2f, %.2f, %.2f)\n", s->surface_normal.x, s->surface_normal.y, s->surface_normal.z );
+  printf("  surface index: %d\n", s->surface_index);
+  printf("  material1 index: %d\n", s->material1_index);
+  printf("  material2 index: %d\n", s->material2_index);
+  printf("  refractive_index1: %.2f\n", s->refractive_index1 );
+  printf("  refractive_index2: %.2f\n", s->refractive_index2 );
+  printf("  absorption_length: %.2f\n", s->absorption_length );
+  printf("  scattering_length: %.2f\n", s->scattering_length );
+  printf("  reemission_prob: %.2f\n", s->reemission_prob );
+  printf("  distance to bounary: %.2f\n", s->distance_to_boundary );
+  printf("  wavelength info: %d %.2f %.2f\n", s->n, s->step, s->wavelength0 );
+  printf("-------------------\n");
+
+}
+
 int convert(int c)
 {
     if (c & 0x80)
@@ -209,27 +232,26 @@ void fill_state(State* s, Photon* p, __local Geometry *g)
   
   s->surface_normal = normalize(cross(v01, v12));
   
-  int material1_index, material2_index ;
   Material material1, material2;
   if (dot(s->surface_normal,-p->direction) > 0.0f) {
     // outside to inside
     //material1 = g->materials[outer_material_index];
     //material2 = g->materials[inner_material_index];
-    material1_index = outer_material_index ;
-    material2_index = inner_material_index ;
+    s->material1_index = outer_material_index ;
+    s->material2_index = inner_material_index ;
     s->inside_to_outside = false;
   }
   else {
     // inside to outside
     //material1 = g->materials[inner_material_index];
     //material2 = g->materials[outer_material_index];
-    material1_index = inner_material_index;
-    material2_index = outer_material_index ;
+    s->material1_index = inner_material_index;
+    s->material2_index = outer_material_index ;
     s->surface_normal = -s->surface_normal;
     s->inside_to_outside = true;
   }
-  fill_material_struct( material1_index, &material1, g);
-  fill_material_struct( material2_index, &material2, g);
+  fill_material_struct( s->material1_index, &material1, g);
+  fill_material_struct( s->material2_index, &material2, g);
 
   s->refractive_index1 = interp_material_property(&material1, p->wavelength, material1.refractive_index);
   s->refractive_index2 = interp_material_property(&material2, p->wavelength, material2.refractive_index);
@@ -247,6 +269,8 @@ void fill_state(State* s, Photon* p, __local Geometry *g)
   s->n = g->nwavelengths;
   s->step = g->step;
   s->wavelength0 = g->wavelength0;
+
+  //sdump( s );
 					 
 } // fill_state
 
@@ -308,8 +332,16 @@ void rayleigh_scatter(Photon *p, __global clrandState *rng)
 
 int propagate_to_boundary(Photon* p, State* s, __global clrandState* rng, bool use_weights, int scatter_first)
 {
-  float absorption_distance = -s->absorption_length*log(clrand_uniform(rng,0.0f,1.0f));
-  float scattering_distance = -s->scattering_length*log(clrand_uniform(rng,0.0f,1.0f));
+
+  float rand1 = clrand_uniform(rng,0.0f,1.0f);
+  float rand2 = clrand_uniform(rng,0.0f,1.0f);
+  float lrand1 = native_log(rand1); // built-in log gives garbage.  native_log also has precision problems to 2d decimal!
+  float lrand2 = native_log(rand2);
+  float absorption_distance = -s->absorption_length*lrand1;
+  float scattering_distance = -s->scattering_length*lrand2;
+  // for debug: warning weird stuff here
+  //printf("abs scat dist: %.2f, %.2f (from %.2f, %.2f, %.2f, %.2f, %.2f, %.2f)\n",
+  //absorption_distance, scattering_distance, rand1, rand2, lrand1, lrand2, s->absorption_length, s->scattering_length);
 
   if (use_weights && p->weight > WEIGHT_LOWER_THRESHOLD && s->reemission_prob == 0) // Prevent absorption
     absorption_distance = 1.0e30f;

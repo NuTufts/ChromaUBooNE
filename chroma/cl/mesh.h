@@ -13,7 +13,7 @@
 bool intersect_node(const float3 *neg_origin_inv_dir, const float3 *inv_dir,
 		    __local Geometry *g, const Node *node, const float min_distance); // min_distance=-1.0f
 bool intersect_node_special(const float3 *neg_origin_inv_dir, const float3 *inv_dir, 
-			    const float3 *origin, const float3 *direction, const int* aligned_axis,
+			    const float3 *origin, const float3 *direction, const int aligned_axis,
 			    __local Geometry *g, const Node *node, const float min_distance);
 int get_aligned_axis( const float3 *direction );
 int intersect_mesh(const float3 *origin, const float3* direction, __local Geometry *g,
@@ -53,13 +53,13 @@ to complete intersect_mesh, as infinities conspire to get almost every
 intersect_box 
 */
 bool intersect_node_special(const float3 *neg_origin_inv_dir, const float3 *inv_dir, 
-			    const float3 *origin, const float3 *direction, const int* aligned_axis,
+			    const float3 *origin, const float3 *direction, const int aligned_axis,
 			    __local Geometry *g, const Node *node, const float min_distance)
 {
   float distance_to_box;
   bool intersects ;
 
-  if(*aligned_axis > 0 ) //  axis aligned photon special case 
+  if(aligned_axis > 0 ) //  axis aligned photon special case 
     {
       intersects = intersect_box_axis_aligned( aligned_axis, origin, direction, &(node->lower), &(node->upper), &distance_to_box);
     }
@@ -127,9 +127,9 @@ int intersect_mesh(const float3 *origin, const float3* direction, __local Geomet
 
   float3 neg_origin_inv_dir = -(*origin) / (*direction);
   float3 inv_dir = 1.0f / (*direction);
-
+  //printf('aligned_axis: %d',aligned_axis);
   //if (!intersect_node(neg_origin_inv_dir, inv_dir, g, root, min_distance))
-  if (!intersect_node_special(&neg_origin_inv_dir, &inv_dir, origin, direction, &aligned_axis, g, &root, (*min_distance)))
+  if (!intersect_node_special(&neg_origin_inv_dir, &inv_dir, origin, direction, aligned_axis, g, &root, (*min_distance)))
     return -1;
 
   unsigned int child_ptr_stack[STACK_SIZE];
@@ -147,14 +147,14 @@ int intersect_mesh(const float3 *origin, const float3* direction, __local Geomet
     {
       unsigned int first_child = child_ptr_stack[curr];
       unsigned int nchild = nchild_ptr_stack[curr];
-       curr--;
-
+      curr--;
+      
       for (unsigned int i=first_child; i < first_child + nchild; i++) {
 	Node node = get_node(g, i);
 	count++;
 
 	//if (intersect_node(neg_origin_inv_dir, inv_dir, g, node, min_distance)) {
-	if (intersect_node_special(&neg_origin_inv_dir, &inv_dir, origin, direction, &aligned_axis, g, &node, (*min_distance) )) {
+	if (intersect_node_special(&neg_origin_inv_dir, &inv_dir, origin, direction, aligned_axis, g, &node, (*min_distance) )) {
 
 	  if (node.nchild == 0) { /* leaf node */
 
@@ -166,7 +166,8 @@ int intersect_mesh(const float3 *origin, const float3* direction, __local Geomet
 	      Triangle t = get_triangle(g, node.child);			
 	      if (intersect_triangle(origin, direction, &t, &distance)) 
 		{
-
+		  //float3 hitpos = *origin + distance*(*direction);
+		  //printf("Intersect triangle %d at (%.2f, %.2f, %.2f)", hitpos.x, hitpos.y, hitpos.z);
 		  if (triangle_index == -1 || distance < (*min_distance)) 
 		    {
 		      triangle_index = node.child;
@@ -174,9 +175,6 @@ int intersect_mesh(const float3 *origin, const float3* direction, __local Geomet
 		    }    // if hit triangle is closer than previous hits
 		  
 		} // if hit triangle
-			
-	      
-	      
 	    } else {
 	      hitsame++;
 	    }    // if not hitting same triangle as last step
@@ -198,12 +196,11 @@ int intersect_mesh(const float3 *origin, const float3* direction, __local Geomet
 
    }       // while nodes on stack
 
-  if (get_group_id(0) == 0 && get_local_id(0) == 0) {
-     printf("node gets: %d\n", count);
-     printf("triangle count: %d\n", tri_count);
-   }
-
-  printf("node gets: %d triangle count: %d maxcurr: %d hitsame: %d \n", count, tri_count, maxcurr, hitsame );
+//   if (get_group_id(0) == 0 && get_local_id(0) == 0) {
+//      printf("node gets: %d\n", count);
+//      printf("triangle count: %d\n", tri_count);
+//    }
+  //printf("node gets: %d triangle count: %d maxcurr: %d hitsame: %d \n", count, tri_count, maxcurr, hitsame );
   
   return triangle_index;
 }

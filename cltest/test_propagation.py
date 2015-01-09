@@ -31,7 +31,7 @@ class TestPropagation(unittest.TestCase):
         sim = Simulation(geo, geant4_processes=0)
 
         # Create initial photons
-        nphotons = 10
+        nphotons = 1000
         pos = np.tile([0,0,0], (nphotons,1)).astype(np.float32)
         dir = np.tile([0,0,1], (nphotons,1)).astype(np.float32)
         pol = np.zeros_like(pos)
@@ -63,6 +63,8 @@ class TestPropagation(unittest.TestCase):
         print 'aborted photons: %1.1f' % \
             (float(count_nonzero(aborted)) / nphotons)
         self.assertFalse(aborted.any())
+
+        print photons_end.pos[0:10]
         
 
 if __name__=="__main__":

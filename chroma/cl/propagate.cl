@@ -110,7 +110,7 @@ __kernel void propagate( int first_photon, int nthreads,
 			 __global float *wavelengths, __global float3 *polarizations,
 			 __global float *times, __global unsigned int *histories,
 			 __global int *last_hit_triangles, __global float *weights,
-			 int max_steps, int use_weights, int scatter_first,
+			 int max_steps, int iuse_weights, int scatter_first,
 			 float world_scale, float3 world_origin, int nprimary_nodes,
 			 unsigned int n, float wavelength_step, float wavelength0,
 			 //Geometry
@@ -163,7 +163,10 @@ __kernel void propagate( int first_photon, int nthreads,
   p.last_hit_triangle = last_hit_triangles[photon_id];
   p.history           = histories[photon_id];
   p.weight            = weights[photon_id];
-  
+  bool use_weights = false;
+  if ( iuse_weights==1 )
+    use_weights = true;
+
   State s;
   
   int steps = 0;
@@ -179,13 +182,15 @@ __kernel void propagate( int first_photon, int nthreads,
     }
     
     fill_state(&s, &p, &sg);
-    
+    //pdump( &p, photon_id, p.history, steps, command, id );
+
     if (p.last_hit_triangle == -1)
       break;
     
     command = propagate_to_boundary(&p, &s, rng, use_weights, scatter_first);
     scatter_first = 0; // Only use the scatter_first value once
-    
+    //pdump( &p, photon_id, p.history, steps, command, id );
+ 
     if (command == BREAK)
       break;
     
@@ -203,7 +208,8 @@ __kernel void propagate( int first_photon, int nthreads,
     }
     
     propagate_at_boundary(&p, &s, rng);
-    
+    //pdump( &p, photon_id, p.history, steps, command, id );
+
   } // while (steps < max_steps)
   
   // return the values to the host

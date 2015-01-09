@@ -28,9 +28,10 @@ void fill_geostruct( __local Geometry* g,
                      __global float *eta, __global float *k, __global float *surf_reemission_cdf,
                      __global unsigned int *model, __global unsigned int *transmissive, __global float *thickness, 
                      float3 world_origin, float world_scale, int nprimary_nodes,
-                     int nwavelengths, float step, float wavelength0 );
+                     unsigned int nwavelengths, float step, float wavelength0 );
 void fill_material_struct( unsigned int material_index, Material* m, __local Geometry* g );
 void fill_surface_struct( unsigned int surface_index, Surface* s, __local Geometry* g );
+void dump_geostruct_info( __local Geometry* g, int threadid );
 
 // Definitions
 float3 to_float3(const uint3 *a)
@@ -143,7 +144,7 @@ void fill_geostruct( __local Geometry* g,
 		     // world info
 		     float3 world_origin, float world_scale, int nprimary_nodes,
 		     // wavelength array info
-		     int nwavelengths, float step, float wavelength0 ) {
+		     unsigned int nwavelengths, float step, float wavelength0 ) {
   g->vertices = vertices;
   g->triangles = triangles;
   g->material_codes = material_codes;
@@ -174,6 +175,8 @@ void fill_geostruct( __local Geometry* g,
   g->nwavelengths = nwavelengths;
   g->step = step;
   g->wavelength0 = wavelength0;
+  g->nmaterials = nmaterials;
+  g->nsurfaces = nsurfaces;
 }
 
 void fill_material_struct( unsigned int material_index, Material* m, __local Geometry* g ) {
@@ -187,6 +190,7 @@ void fill_material_struct( unsigned int material_index, Material* m, __local Geo
   m->n = g->nwavelengths;
   m->step = g->step;
   m->wavelength0 = g->wavelength0;
+  
 }
 
 void fill_surface_struct( unsigned int surface_index, Surface* s, __local Geometry* g ) {
@@ -209,4 +213,106 @@ void fill_surface_struct( unsigned int surface_index, Surface* s, __local Geomet
   s->wavelength0 = g->wavelength0;
 }
 
+void dump_geostruct_info( __local Geometry* g, int threadid ) {
+  printf("========================================================================\n");
+  printf("DUMPING GEOMETRY INFO IN STRUCT\n");
+  printf("-- World info --\n");
+  printf("thread id: %d\n",threadid);
+  printf("Number of Nodes: %d\n",g->nprimary_nodes);
+  printf("World origin: (%.3f, %.3f, %.3f)\n", g->world_origin.x, g->world_origin.y, g->world_origin.z);
+  printf("World scale: %.3f\n",g->world_scale);
+  printf("-- Wavelength arrays info --\n");
+  printf("Number of wavelengths: %d\n",g->nwavelengths);
+  printf("Size of wavelength steps: %.2f nm\n",g->step);
+  printf("Starting wavelength: %.2f nm\n",g->wavelength0);
+  printf("-- Materials --\n");
+  printf("Number of materials: %d\n",g->nmaterials);
+
+  for (int imat=0; imat<g->nmaterials; imat++) {
+    Material mat;
+    fill_material_struct( imat, &mat, g );
+
+    printf(" Material %d (nwavelengths=%d)\n",imat, mat.n );
+    printf("  refractive_index: ");
+    for (unsigned int iw=0; iw<mat.n; iw++)
+      printf(" %.2f",mat.refractive_index[iw] );
+    printf("\n");
+
+    printf("  absorption_length: ");
+    for (unsigned int iw=0; iw<mat.n; iw++)
+      printf(" %.2f",mat.absorption_length[iw] );
+    printf("\n");
+
+    printf("  scattering_length: ");
+    for (unsigned int iw=0; iw<mat.n; iw++)
+      printf(" %.2f",mat.scattering_length[iw] );
+    printf("\n");
+
+    printf("  reemission_prob: ");
+    for (unsigned int iw=0; iw<mat.n; iw++)
+      printf(" %.2f",mat.reemission_prob[iw] );
+    printf("\n");
+
+    printf("  reemission_cdf: ");
+    for (unsigned int iw=0; iw<mat.n; iw++)
+      printf(" %.2f",mat.reemission_cdf[iw] );
+    printf("\n");
+
+  }
+
+  printf("-- Surfaces --\n");
+  printf("Number of surfaces: %d\n",g->nsurfaces);
+
+  for (int isurf=0; isurf<g->nsurfaces; isurf++) {
+    Surface surf;
+    fill_surface_struct( isurf, &surf, g );
+
+    printf(" Surface %d (nwavelengths=%d)\n",isurf, surf.n );
+
+    printf("  detect: ");
+    for (unsigned int iw=0; iw<surf.n; iw++)
+      printf(" %.2f",surf.detect[iw] );
+    printf("\n");
+
+    printf("  absorb: ");
+    for (unsigned int iw=0; iw<surf.n; iw++)
+      printf(" %.2f",surf.absorb[iw] );
+    printf("\n");
+
+    printf("  reemit: ");
+    for (unsigned int iw=0; iw<surf.n; iw++)
+      printf(" %.2f",surf.reemit[iw] );
+    printf("\n");
+
+    printf("  reflect_diffuse: ");
+    for (unsigned int iw=0; iw<surf.n; iw++)
+      printf(" %.2f",surf.reflect_diffuse[iw] );
+    printf("\n");
+
+    printf("  reflect_specular: ");
+    for (unsigned int iw=0; iw<surf.n; iw++)
+      printf(" %.2f",surf.reflect_specular[iw] );
+    printf("\n");
+
+    printf("  eta: ");
+    for (unsigned int iw=0; iw<surf.n; iw++)
+      printf(" %.2f",surf.eta[iw] );
+    printf("\n");
+
+    printf("  k: ");
+    for (unsigned int iw=0; iw<surf.n; iw++)
+      printf(" %.2f",surf.k[iw] );
+    printf("\n");
+
+    printf("  reemission_cdf: ");
+    for (unsigned int iw=0; iw<surf.n; iw++)
+      printf(" %.2f",surf.reemission_cdf[iw] );
+    printf("\n");
+    
+  }
+
+  printf("========================================================================\n");
+};
+
 #endif
+

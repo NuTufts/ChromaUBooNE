@@ -12,9 +12,9 @@ typedef struct Material
   __global float *reemission_prob;
   __global float *reemission_cdf;
   // these are moved out to satify requirement that all members are from same address space
-  unsigned int n;
   float step;
   float wavelength0;
+  unsigned int n;
 } Material;
 
 typedef struct WavelengthAxis {
@@ -107,6 +107,9 @@ typedef struct Geometry
   int nwavelengths;
   float step;
   float wavelength0;
+
+  int nmaterials;
+  int nsurfaces;
 
 } Geometry;
 

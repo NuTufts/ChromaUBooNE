@@ -22,16 +22,21 @@ __kernel void make_geostruct(//Geometry
 			     // World Info
 			     float3 world_origin, float world_scale, int nprimary_nodes,
 			     // Wavelength array info
-			     int nwavelengths, float wavelengthstep, float wavelength0 ) {
+			     unsigned int nwavelengths, float wavelengthstep, float wavelength0 ) {
   // so we don't end up passing a million pointers around, we define global structs
   __local Geometry g;
-  fill_geostruct( &g, vertices, triangles, material_codes, colors, primary_nodes, extra_nodes,
-		  nmaterials, refractive_index, absorption_length, scattering_length, reemission_prob, reemission_cdf,
-		  nsurfaces, detect, absorb, reemit, reflect_diffuse, reflect_specular, eta, k, surf_reemission_cdf, model, transmissive, thickness,
-		  world_origin, world_scale, nprimary_nodes,
-		  nwavelengths, wavelengthstep, wavelength0 );
-  printf("example vertex: %.2f, %.2f, %.2f\n",g.vertices[2].x, g.vertices[2].y, g.vertices[2].z );
-  printf("hello geostructs\n");
+  int id = get_local_size(0)*get_group_id(0) + get_local_id(0);
+  if ( get_local_id(0) == 0) {
+    fill_geostruct( &g, vertices, triangles, material_codes, colors, primary_nodes, extra_nodes,
+		    nmaterials, refractive_index, absorption_length, scattering_length, reemission_prob, reemission_cdf,
+		    nsurfaces, detect, absorb, reemit, reflect_diffuse, reflect_specular, eta, k, surf_reemission_cdf, model, transmissive, thickness,
+		    world_origin, world_scale, nprimary_nodes,
+		    nwavelengths, wavelengthstep, wavelength0 );
+    
+  }
+  barrier( CLK_LOCAL_MEM_FENCE );
+  printf("nwavelengths: %d\n",nwavelengths);
+  dump_geostruct_info( &g, id );
 };
 
 #endif

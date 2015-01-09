@@ -14,7 +14,7 @@ bool intersect_triangle(const float3 *origin, const float3 *direction, const Tri
 bool intersect_box(const float3 *neg_origin_inv_dir, const float3 *inv_dir,
 		   const float3 *lower_bound, const float3 *upper_bound,
 		   float* distance_to_box);
-bool intersect_box_axis_aligned( const int* aligned_axis, const float3 *origin, const float3 *direction, 
+bool intersect_box_axis_aligned( const int aligned_axis, const float3 *origin, const float3 *direction, 
 				 const float3 *lower_bound, const float3 *upper_bound,
 				 float* distance_to_box);
 
@@ -126,26 +126,26 @@ bool intersect_box(const float3 *neg_origin_inv_dir, const float3 *inv_dir,
     return true;
 }
 
-bool intersect_box_axis_aligned( const int* aligned_axis, const float3 *origin, const float3 *direction, 
+bool intersect_box_axis_aligned( const int aligned_axis, const float3 *origin, const float3 *direction, 
 				 const float3 *lower_bound, const float3 *upper_bound,
 				 float* distance_to_box)
 {
   // handling edge case of rays travelling along axes
-  if( *aligned_axis == 3 ){ // along z 
+  if( aligned_axis == 3 ){ // along z 
     (*distance_to_box) = origin->z - lower_bound->z ;
     return ( origin->x > lower_bound->x 
 	     && origin->x < upper_bound->x 
 	     && origin->y > lower_bound->y 
 	     && origin->y < upper_bound->y );
   }
-  else if ( *aligned_axis == 2 ){  // along y
+  else if ( aligned_axis == 2 ){  // along y
     (*distance_to_box) = origin->y - lower_bound->y ;
     return ( origin->x > lower_bound->x 
 	     && origin->x < upper_bound->x 
 	     && origin->z > lower_bound->z 
 	     && origin->z < upper_bound->z );
   }
-  else if ( *aligned_axis == 1){   // along x
+  else if ( aligned_axis == 1){   // along x
     (*distance_to_box) = origin->x - lower_bound->x ;
     return ( origin->y > lower_bound->y 
 	     && origin->y < upper_bound->y 
