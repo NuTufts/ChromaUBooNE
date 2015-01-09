@@ -20,7 +20,8 @@
 // See gpu/clrandstate.py for pyopencl definition
 float clrand_uniform(__global clrandState *s, float low, float high);
 float sample_cdf(__global clrandState *rng, int ncdf, __global float *cdf_x, __global float *cdf_y);
-float sample_cdf_interp(__global clrandState *rng, int ncdf, float x0, float delta, float *cdf_y);
+float sample_cdf_interp(__global clrandState *rng, int ncdf, float x0, float delta, __global float *cdf_y);
+float3 uniform_sphere(__global clrandState *s);
 
 
 __kernel void makeRandStates( unsigned int first_state_id,
@@ -63,15 +64,15 @@ float clrand_uniform(__global clrandState *s, float low, float high)
 
 
 
-/* __device__ float3 */
-/* uniform_sphere(curandState *s) */
-/* { */
-/*     float theta = uniform(s, 0.0f, 2*PI); */
-/*     float u = uniform(s, -1.0f, 1.0f); */
-/*     float c = sqrtf(1.0f-u*u); */
 
-/*     return make_float3(c*cosf(theta), c*sinf(theta), u); */
-/* } */
+float3 uniform_sphere(__global clrandState *s)
+{ 
+  float theta = clrand_uniform(s, 0.0f, 2*M_PI_F);
+  float u = clrand_uniform(s, -1.0f, 1.0f);
+  float c = sqrtf(1.0f-u*u);
+
+  return make_float3(c*cosf(theta), c*sinf(theta), u); 
+} 
 
  // Draw a random sample given a cumulative distribution function */
  // Assumptions: ncdf >= 2, cdf_y[0] is 0.0, and cdf_y[ncdf-1] is 1.0 */
@@ -82,7 +83,7 @@ float sample_cdf(__global clrandState *rng, int ncdf, __global float *cdf_x, __g
 };
 
 // Sample from a uniformly-sampled CDF */
-float sample_cdf_interp(__global clrandState *rng, int ncdf, float x0, float delta, float *cdf_y) {
+float sample_cdf_interp(__global clrandState *rng, int ncdf, float x0, float delta, __global float *cdf_y) {
   float u = clrand_uniform(rng,0.0f,1.0f);
 
   int lower = 0;

@@ -52,7 +52,7 @@ def get_cl_module(name, clcontext, options=None, include_source_directory=True, 
     #print options
     return cl.Program( clcontext, source ).build(options)
 
-@pytools.memoize
+#@pytools.memoize
 def get_cl_source(name):
     """Get the source code for a openCL source file located in the chroma cuda
     directory at src/[name]."""

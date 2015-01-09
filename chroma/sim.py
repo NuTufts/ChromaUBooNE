@@ -82,6 +82,7 @@ class Simulation(object):
 
     def simulate(self, iterable, keep_photons_beg=False,
                  keep_photons_end=False, run_daq=True, max_steps=100 ):
+
         try:
             if isinstance(iterable, event.Photons):
                 raise TypeError # Kludge because Photons looks iterable

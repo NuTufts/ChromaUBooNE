@@ -1,14 +1,13 @@
 #ifndef __PHOTON_H__
 #define __PHOTON_H__
 
-//#include "stdio.h"
 #include "linalg.h"
+#include "geometry.h"
 #include "rotate.h"
 #include "random.cl"
 #include "physical_constants.h"
 #include "mesh.h"
-#include "geometry.h"
-#include "cx.h" // complex functions
+//#include "cx.h" // complex functions
 
 #define WEIGHT_LOWER_THRESHOLD 0.0001f
 
@@ -42,7 +41,7 @@ typedef struct State
   float absorption_length;
   float scattering_length;
   float reemission_prob;
-  //Material *material1;
+  //Material *material1; // we try to use the material struct here
   __global float *mat1_refractive_index;  // addresses to what memory space?
   __global float *mat1_absorption_length;
   __global float *mat1_scattering_length;
@@ -104,6 +103,15 @@ void fill_state(State* s, Photon* p, __local Geometry *g);
 float3 pick_new_direction(float3 axis, float theta, float phi);
 void rayleigh_scatter(Photon *p, __global clrandState *rng);
 int propagate_to_boundary(Photon* p, State* s, __global clrandState* rng, bool use_weights, int scatter_first);
+void propagate_at_boundary(Photon *p, State *s, __global clrandState *rng);
+int propagate_at_specular_reflector(Photon *p, State *s);
+int propagate_at_diffuse_reflector(Photon *p, State *s, __global clrandState *rng);
+int propagate_complex(Photon *p, State *s, __global clrandState *rng, Surface* surface, bool use_weights);
+int propagate_at_wls(Photon *p, State *s, __global clrandState *rng, Surface *surface, bool use_weights);
+int propagate_at_surface(Photon *p, State *s, __global clrandState *rng, __local Geometry *geometry, bool use_weights);
+
+// -----------------------------------------------------------------
+// definitions
 
 void pdump( Photon* p, int photon_id, int status, int steps, int command, int slot )
 {
@@ -178,12 +186,12 @@ float get_theta(const float3 *a, const float3 *b)
 void fill_state(State* s, Photon* p, __local Geometry *g)
 {
   p->last_hit_triangle = intersect_mesh(&(p->position), &(p->direction), g,
-					&(s->distance_to_boundary), 
+					&(s->distance_to_boundary),
 					p->last_hit_triangle);
   
   if (p->last_hit_triangle == -1) {
-    s->material1_index = 999;  
-    s->material2_index = 999;  
+    s->material1_index = 999;
+    s->material2_index = 999;
     p->history |= NO_HIT;
     return;
   }
@@ -202,52 +210,55 @@ void fill_state(State* s, Photon* p, __local Geometry *g)
   s->surface_normal = normalize(cross(v01, v12));
   
   int material1_index, material2_index ;
-  Material *material1, *material2;
+  Material material1, material2;
   if (dot(s->surface_normal,-p->direction) > 0.0f) {
     // outside to inside
     //material1 = g->materials[outer_material_index];
     //material2 = g->materials[inner_material_index];
-    material1_index = outer_material_index ; 
-    material2_index = inner_material_index ; 
-    
+    material1_index = outer_material_index ;
+    material2_index = inner_material_index ;
     s->inside_to_outside = false;
   }
   else {
     // inside to outside
     //material1 = g->materials[inner_material_index];
     //material2 = g->materials[outer_material_index];
-    material1_index = inner_material_index; 
-    material2_index = outer_material_index ; 
+    material1_index = inner_material_index;
+    material2_index = outer_material_index ;
     s->surface_normal = -s->surface_normal;
-    
     s->inside_to_outside = true;
   }
-  
-  s->refractive_index1 = interp_property(material1, p->wavelength,
-					 g->refractive_index[material1_index]);// material1->refractive_index);
-  s->refractive_index2 = interp_property(material2, p->wavelength,
-					 g->refractive_index[material2_index]);//material2->refractive_index);
-  s->absorption_length = interp_property(material1, p->wavelength,
-					 g->absorption_length[material1_index]);//material1->absorption_length);
-  s->scattering_length = interp_property(material1, p->wavelength,
-					 g->scattering_length[material1_index]);//material1->scattering_length);
-  s->reemission_prob = interp_property(material1, p->wavelength,
-				       g->reemission_prob[material1_index]);//material1->reemission_prob);
-  
-  //s->material1 = material1;
-  s->material1_index = material1_index;  
-  s->material2_index = material2_index;  
-  s->mat1_refractive_index = g->refractive_index[material1_index];
-  s->mat1_absorption_length = g->absorption_length[material1_index] 
+  fill_material_struct( material1_index, &material1, g);
+  fill_material_struct( material2_index, &material2, g);
+
+  s->refractive_index1 = interp_material_property(&material1, p->wavelength, material1.refractive_index);
+  s->refractive_index2 = interp_material_property(&material2, p->wavelength, material2.refractive_index);
+  s->absorption_length = interp_material_property(&material1, p->wavelength, material1.absorption_length);
+  s->scattering_length = interp_material_property(&material1, p->wavelength, material1.scattering_length);
+  s->reemission_prob   = interp_material_property(&material1, p->wavelength, material1.reemission_prob);
+
+  // we do this instead of mallocing instant of Material struct
+  s->mat1_refractive_index = g->refractive_index + g->nwavelengths*s->material1_index;
+  s->mat1_absorption_length = g->absorption_length + g->nwavelengths*s->material1_index;
+  s->mat1_scattering_length = g->scattering_length + g->nwavelengths*s->material1_index;
+  s->mat1_reemission_prob = g->reemission_prob + g->nwavelengths*s->material1_index;
+  s->mat1_reemission_cdf = g->reemission_cdf + g->nwavelengths*s->material1_index;
+
+  s->n = g->nwavelengths;
+  s->step = g->step;
+  s->wavelength0 = g->wavelength0;
+					 
 } // fill_state
 
 float3 pick_new_direction(float3 axis, float theta, float phi)
 {
     // Taken from SNOMAN rayscatter.for
     float cos_theta, sin_theta;
-    sincosf(theta, &sin_theta, &cos_theta);
+    //sincosf(theta, &sin_theta, &cos_theta);
+    sin_theta = sincos( theta, &cos_theta );
     float cos_phi, sin_phi;
-    sincosf(phi, &sin_phi, &cos_phi);
+    //sincosf(phi, &sin_phi, &cos_phi);
+    sin_phi = sincos( phi, &cos_phi );
 	
     float sin_axis_theta = sqrt(1.0f - axis.z*axis.z);
     float cos_axis_phi, sin_axis_phi;
@@ -272,36 +283,36 @@ float3 pick_new_direction(float3 axis, float theta, float phi)
 
 void rayleigh_scatter(Photon *p, __global clrandState *rng)
 {
-    float cos_theta = 2.0f*cosf((acosf(1.0f - 2.0f*curand_uniform(&rng))-2*PI)/3.0f);
-    if (cos_theta > 1.0f)
-	cos_theta = 1.0f;
-    else if (cos_theta < -1.0f)
-	cos_theta = -1.0f;
+  float cos_theta = 2.0f*cos((acos(1.0f - 2.0f*clrand_uniform(rng, 0.0f, 1.0f))-2.0f*M_PI_F)/3.0f);
+  if (cos_theta > 1.0f)
+    cos_theta = 1.0f;
+  else if (cos_theta < -1.0f)
+    cos_theta = -1.0f;
 
-    float theta = acosf(cos_theta);
-    float phi = uniform(&rng, 0.0f, 2.0f * PI);
+  float theta = acos(cos_theta);
+  float phi = clrand_uniform(rng, 0.0f, 2.0f * M_PI_F);
 
-    p->direction = pick_new_direction(p->polarization, theta, phi);
+  p->direction = pick_new_direction(p->polarization, theta, phi);
 
-    if (1.0f - fabsf(cos_theta) < 1e-6f) {
-	p->polarization = pick_new_direction(p->polarization, PI/2.0f, phi);
-    }
-    else {
-	// linear combination of old polarization and new direction
-	p->polarization = p->polarization - cos_theta * p->direction;
-    }
+  if (1.0f - fabs(cos_theta) < 1e-6f) {
+    p->polarization = pick_new_direction(p->polarization, M_PI_F/2.0f, phi);
+  }
+  else {
+    // linear combination of old polarization and new direction
+    p->polarization = p->polarization - cos_theta * p->direction;
+  }
 
-    p->direction /= norm(p->direction);
-    p->polarization /= norm(p->polarization);
+  p->direction /= length(p->direction);
+  p->polarization /= length(p->polarization);
 } // scatter
 
 int propagate_to_boundary(Photon* p, State* s, __global clrandState* rng, bool use_weights, int scatter_first)
 {
-  float absorption_distance = -s->absorption_length*logf(clrand_uniform(rng,0.0,1.0));
-  float scattering_distance = -s->scattering_length*logf(clrand_uniform(rng,0.0,1.0));
+  float absorption_distance = -s->absorption_length*logf(clrand_uniform(rng,0.0f,1.0f));
+  float scattering_distance = -s->scattering_length*logf(clrand_uniform(rng,0.0f,1.0f));
 
   if (use_weights && p->weight > WEIGHT_LOWER_THRESHOLD && s->reemission_prob == 0) // Prevent absorption
-    absorption_distance = 1e30;
+    absorption_distance = 1.0e30f;
   else
     use_weights = false;
 
@@ -314,7 +325,7 @@ int propagate_to_boundary(Photon* p, State* s, __global clrandState* rng, bool u
 	const int max_i = 1000;
 	while (i < max_i && scattering_distance > s->distance_to_boundary) 
 	  {
-	    scattering_distance = -s->scattering_length*logf(clrand_uniform(rng));
+	    scattering_distance = -s->scattering_length*logf( clrand_uniform(rng, 0.0f, 1.0f) );
 	    i++;
 	  }
 	p->weight *= scatter_prob;
@@ -329,7 +340,7 @@ int propagate_to_boundary(Photon* p, State* s, __global clrandState* rng, bool u
 	const int max_i = 1000;
 	while (i < max_i && scattering_distance <= s->distance_to_boundary) 
 	  {
-	    scattering_distance = -s->scattering_length*logf(clrand_uniform(rng));
+	    scattering_distance = -s->scattering_length*logf( clrand_uniform(rng, 0.0f, 1.0f) );
 	    i++;
 	  }
 	p->weight *= no_scatter_prob;
@@ -349,38 +360,38 @@ int propagate_to_boundary(Photon* p, State* s, __global clrandState* rng, bool u
 	p->time += absorption_distance/(SPEED_OF_LIGHT/s->refractive_index1);
 	p->position += absorption_distance*p->direction;
 
-	float uniform_sample_reemit = clrand_uniform(rng,0.0,1.0);
+	float uniform_sample_reemit = clrand_uniform(rng,0.0f,1.0f);
 	if (uniform_sample_reemit < s->reemission_prob) 
 	  {
-	    p->wavelength = sample_cdf(rng, s->material1->n, 
-				       s->material1->wavelength0,
-				       s->material1->step,
-				       s->material1->reemission_cdf);
-                p->direction = uniform_sphere(&rng);
-                p->polarization = cross(uniform_sphere(&rng), p->direction);
-                p->polarization /= norm(p->polarization);
-                p->history |= BULK_REEMIT;
-                return CONTINUE;
-            } // photon is reemitted isotropically
-            else 
-            {
-                p->last_hit_triangle = -1;
-                p->history |= BULK_ABSORB;
-                return BREAK;
-            } // photon is absorbed in material1
-        }
-    }
-
+	    p->wavelength = sample_cdf_interp(rng, s->n, 
+					      s->wavelength0,
+					      s->step,
+					      s->mat1_reemission_cdf);
+	    p->direction = uniform_sphere(rng);
+	    p->polarization = cross(uniform_sphere(rng), p->direction);
+	    p->polarization /= length(p->polarization);
+	    p->history |= BULK_REEMIT;
+	    return CONTINUE;
+	  } // photon is reemitted isotropically
+	else 
+	  {
+	    p->last_hit_triangle = -1;
+	    p->history |= BULK_ABSORB;
+	    return BREAK;
+	  } // photon is absorbed in material1
+      }
+  }
+  
     //  RAYLEIGH_SCATTER(CONTINUE)  .time .position advanced to scatter point .direction .polarization twiddled 
     //
     else
     {
-        if (scattering_distance <= s.distance_to_boundary) {
+        if (scattering_distance <= s->distance_to_boundary) {
 
             // Scale weight by absorption probability along this distance
-            if (use_weights) p->weight *= expf(-scattering_distance/s.absorption_length);
+            if (use_weights) p->weight *= expf(-scattering_distance/s->absorption_length);
 
-            p->time += scattering_distance/(SPEED_OF_LIGHT/s.refractive_index1);
+            p->time += scattering_distance/(SPEED_OF_LIGHT/s->refractive_index1);
             p->position += scattering_distance*p->direction;
 
             rayleigh_scatter(p, rng);
@@ -395,93 +406,93 @@ int propagate_to_boundary(Photon* p, State* s, __global clrandState* rng, bool u
 
 
     // Scale weight by absorption probability along this distance
-    if (use_weights) p->weight *= expf(-s.distance_to_boundary/s.absorption_length);
+    if (use_weights) p->weight *= expf(-s->distance_to_boundary/s->absorption_length);
 
     //  Survive to boundary(PASS)  .position .time advanced to boundary 
     //
-    p->position += s.distance_to_boundary*p->direction;
-    p->time += s.distance_to_boundary/(SPEED_OF_LIGHT/s.refractive_index1);
+    p->position += s->distance_to_boundary*p->direction;
+    p->time += s->distance_to_boundary/(SPEED_OF_LIGHT/s->refractive_index1);
 
     return PASS;
 
 } // propagate_to_boundary
 
-__noinline__ __device__ void
-propagate_at_boundary(Photon &p, State &s, curandState &rng)
+void propagate_at_boundary(Photon *p, State *s, __global clrandState *rng)
 {
-    float incident_angle = get_theta(s.surface_normal,-p.direction);
-    float refracted_angle = asinf(sinf(incident_angle)*s.refractive_index1/s.refractive_index2);
+  float3 inv_dir = -p->direction;
+  float incident_angle = get_theta( &(s->surface_normal),&inv_dir );
+  float refracted_angle = asinf(sinf(incident_angle)*s->refractive_index1/s->refractive_index2);
 
-    float3 incident_plane_normal = cross(p.direction, s.surface_normal);
-    float incident_plane_normal_length = norm(incident_plane_normal);
-
-    // Photons at normal incidence do not have a unique plane of incidence,
-    // so we have to pick the plane normal to be the polarization vector
-    // to get the correct logic below
-    if (incident_plane_normal_length < 1e-6f)
-        incident_plane_normal = p.polarization;
-    else
-        incident_plane_normal /= incident_plane_normal_length;
-
-    float normal_coefficient = dot(p.polarization, incident_plane_normal);
-    float normal_probability = normal_coefficient*normal_coefficient;
-
-    float reflection_coefficient;
-    if (curand_uniform(&rng) < normal_probability) 
+  float3 incident_plane_normal = cross(p->direction, s->surface_normal);
+  float incident_plane_normal_length = length(incident_plane_normal);
+  
+  // Photons at normal incidence do not have a unique plane of incidence,
+  // so we have to pick the plane normal to be the polarization vector
+  // to get the correct logic below
+  if (incident_plane_normal_length < 1e-6f)
+    incident_plane_normal = p->polarization;
+  else
+    incident_plane_normal /= incident_plane_normal_length;
+  
+  float normal_coefficient = dot(p->polarization, incident_plane_normal);
+  float normal_probability = normal_coefficient*normal_coefficient;
+  
+  float reflection_coefficient;
+  if (clrand_uniform(rng, 0.0f, 1.0f) < normal_probability) 
     {
-        // photon polarization normal to plane of incidence
-        reflection_coefficient = -sinf(incident_angle-refracted_angle)/sinf(incident_angle+refracted_angle);
-
-        if ((curand_uniform(&rng) < reflection_coefficient*reflection_coefficient) || isnan(refracted_angle)) 
+      // photon polarization normal to plane of incidence
+      reflection_coefficient = -sinf(incident_angle-refracted_angle)/sinf(incident_angle+refracted_angle);
+      
+      if ((clrand_uniform(rng, 0.0f, 1.0f) < reflection_coefficient*reflection_coefficient) || isnan(refracted_angle)) 
         {
-            p.direction = rotate(s.surface_normal, incident_angle, incident_plane_normal);
-            p.history |= REFLECT_SPECULAR;
+	  p->direction = rotate_with_vec( &(s->surface_normal), incident_angle, &incident_plane_normal);
+	  p->history |= REFLECT_SPECULAR;
         }
-        else 
+      else 
         {
-            // hmm maybe add REFRACT_? flag for this branch  
-            p.direction = rotate(s.surface_normal, PI-refracted_angle, incident_plane_normal);
+	  // hmm maybe add REFRACT_? flag for this branch  
+	  p->direction = rotate_with_vec(&(s->surface_normal), M_PI_F-refracted_angle, &incident_plane_normal);
         }
-        p.polarization = incident_plane_normal;
+      p->polarization = incident_plane_normal;
     }
-    else 
+  else 
     {
-        // photon polarization parallel to plane of incidence
-        reflection_coefficient = tanf(incident_angle-refracted_angle)/tanf(incident_angle+refracted_angle);
-
-        if ((curand_uniform(&rng) < reflection_coefficient*reflection_coefficient) || isnan(refracted_angle)) 
+      // photon polarization parallel to plane of incidence
+      reflection_coefficient = tanf(incident_angle-refracted_angle)/tanf(incident_angle+refracted_angle);
+      
+      if ((clrand_uniform(rng, 0.0f, 1.0f) < reflection_coefficient*reflection_coefficient) || isnan(refracted_angle)) 
         {
-            p.direction = rotate(s.surface_normal, incident_angle, incident_plane_normal);
-            p.history |= REFLECT_SPECULAR;
+	  p->direction = rotate_with_vec(&(s->surface_normal), incident_angle, &incident_plane_normal);
+	  p->history |= REFLECT_SPECULAR;
         }
-        else 
+      else 
         {
-            // hmm maybe add REFRACT_? flag for this branch  
-            p.direction = rotate(s.surface_normal, PI-refracted_angle, incident_plane_normal);
+	  // hmm maybe add REFRACT_? flag for this branch  
+	  p->direction = rotate_with_vec(&(s->surface_normal), M_PI_F-refracted_angle, &incident_plane_normal);
         }
-
-        p.polarization = cross(incident_plane_normal, p.direction);
-        p.polarization /= norm(p.polarization);
+      
+      p->polarization = cross(incident_plane_normal, p->direction);
+      p->polarization /= length(p->polarization);
     }
-
+  
 } // propagate_at_boundary
 
-__device__ int
-propagate_at_specular_reflector(Photon &p, State &s)
+int propagate_at_specular_reflector(Photon *p, State *s)
 {
-   
-    float incident_angle = get_theta(s.surface_normal, -p.direction);
-    float3 incident_plane_normal = cross(p.direction, s.surface_normal);
-    float n_incident_plane_normal = norm(incident_plane_normal); 
+  
+  float3 inv_dir = -p->direction;
+  float incident_angle = get_theta( &(s->surface_normal), &inv_dir );
+  float3 incident_plane_normal = cross(p->direction, s->surface_normal);
+  float n_incident_plane_normal = length(incident_plane_normal); 
 
 #ifdef VBO_DEBUG
-    if( p.id == VBO_DEBUG_PHOTON_ID )
+    if( p->id == VBO_DEBUG_PHOTON_ID )
     {
-        printf("id %d incident_angle          %f \n"      , p.id, incident_angle );
-        printf("id %d s.surface_normal        %f %f %f \n", p.id, s.surface_normal.x, s.surface_normal.y, s.surface_normal.z ); 
-        printf("id %d p.direction             %f %f %f \n", p.id, p.direction.x, p.direction.y, p.direction.z ); 
-        printf("id %d incident_plane_normal   %f %f %f \n", p.id, incident_plane_normal.x, incident_plane_normal.y, incident_plane_normal.z ); 
-        printf("id %d n_incident_plane_..) %f \n", p.id, n_incident_plane_normal ); 
+        printf("id %d incident_angle          %f \n"      , p->id, incident_angle );
+        printf("id %d s.surface_normal        %f %f %f \n", p->id, s->surface_normal.x, s->surface_normal.y, s->surface_normal.z ); 
+        printf("id %d p.direction             %f %f %f \n", p->id, p->direction.x, p->direction.y, p->direction.z ); 
+        printf("id %d incident_plane_normal   %f %f %f \n", p->id, incident_plane_normal.x, incident_plane_normal.y, incident_plane_normal.z ); 
+        printf("id %d n_incident_plane_..) %f \n", p->id, n_incident_plane_normal ); 
     }
 #endif
 
@@ -493,314 +504,326 @@ propagate_at_specular_reflector(Photon &p, State &s)
     //   * results in n_incident_plane_normal being zero
     //     
 
-    if( n_incident_plane_normal != 0. )
+    if( n_incident_plane_normal != 0.0f )
     {
         incident_plane_normal /= n_incident_plane_normal;
-        p.direction = rotate(s.surface_normal, incident_angle, incident_plane_normal);
+        p->direction = rotate_with_vec( &(s->surface_normal), incident_angle, &incident_plane_normal );
     }
     else  // collinear surface_normal and direction, so just avoid the NAN and just flip direction
     {
-        p.direction = -p.direction ;
+        p->direction = -p->direction ;
     }
 
-    p.history |= REFLECT_SPECULAR;
+    p->history |= REFLECT_SPECULAR;
 
     return CONTINUE;
 } // propagate_at_specular_reflector
 
-__device__ int
-propagate_at_diffuse_reflector(Photon &p, State &s, curandState &rng)
+int propagate_at_diffuse_reflector(Photon *p, State *s, __global clrandState *rng)
 {
     float ndotv;
     do {
-	p.direction = uniform_sphere(&rng);
-	ndotv = dot(p.direction, s.surface_normal);
+	p->direction = uniform_sphere(rng);
+	ndotv = dot(p->direction, s->surface_normal);
 	if (ndotv < 0.0f) {
-	    p.direction = -p.direction;
+	    p->direction = -p->direction;
 	    ndotv = -ndotv;
 	}
-    } while (! (curand_uniform(&rng) < ndotv) );
+    } while (! (clrand_uniform(rng, 0.0f, 1.0f) < ndotv) );
 
-    p.polarization = cross(uniform_sphere(&rng), p.direction);
-    p.polarization /= norm(p.polarization);
+    p->polarization = cross(uniform_sphere(rng), p->direction);
+    p->polarization /= length(p->polarization);
 
-    p.history |= REFLECT_DIFFUSE;
+    p->history |= REFLECT_DIFFUSE;
 
     return CONTINUE;
 } // propagate_at_diffuse_reflector
 
-__device__ int
-propagate_complex(Photon &p, State &s, curandState &rng, Surface* surface, bool use_weights=false)
+int propagate_complex(Photon *p, State *s, __global clrandState *rng, Surface* surface, bool use_weights)
 {
-    float detect = interp_property(surface, p.wavelength, surface->detect);
-    float reflect_specular = interp_property(surface, p.wavelength, surface->reflect_specular);
-    float reflect_diffuse = interp_property(surface, p.wavelength, surface->reflect_diffuse);
-    float n2_eta = interp_property(surface, p.wavelength, surface->eta);
-    float n2_k = interp_property(surface, p.wavelength, surface->k);
+  float detect           = interp_surface_property(surface, p->wavelength, surface->detect);
+  //float reflect_specular = interp_surface_property(surface, p->wavelength, surface->reflect_specular);
+  float reflect_diffuse  = interp_surface_property(surface, p->wavelength, surface->reflect_diffuse);
+  float n2_eta           = interp_surface_property(surface, p->wavelength, surface->eta);
+  float n2_k             = interp_surface_property(surface, p->wavelength, surface->k);
+  
+  // thin film optical model, adapted from RAT PMT optical model by P. Jones
+  //cfloat_t n1 = make_cuFloatComplex(s.refractive_index1, 0.0f);
+  //cfloat_t n2 = make_cuFloatComplex(n2_eta, n2_k);
+  //cfloat_t n3 = make_cuFloatComplex(s.refractive_index2, 0.0f);
 
-    // thin film optical model, adapted from RAT PMT optical model by P. Jones
-    cuFloatComplex n1 = make_cuFloatComplex(s.refractive_index1, 0.0f);
-    cuFloatComplex n2 = make_cuFloatComplex(n2_eta, n2_k);
-    cuFloatComplex n3 = make_cuFloatComplex(s.refractive_index2, 0.0f);
+/*   cfloat_t n1  = (cfloat_t)( s->refractive_index1, 0.0f ); */
+/*   cfloat_t n2  = (cfloat_t)( n2_eta, n2_k ); */
+/*   cfloat_t n3  = (cfloat_t)( s->refractive_index2, 0.0f ); */
+/*   cfloat_t one = (cfloat_t)( 1.0f, 0.0f ); */
+/*   cfloat_t two = (cfloat_t)( 2.0f, 0.0f ); */
+  
+/*   float cos_t1 = dot(p->direction, s->surface_normal); */
+/*   if (cos_t1 < 0.0f) */
+/*     cos_t1 = -cos_t1; */
+/*   float theta = acos(cos_t1); */
+  
+/*   cfloat_t cos1 = ( cos(theta), 0.0f ); // make_cfloat_t(cosf(theta), 0.0f); */
+/*   cfloat_t sin1 = ( sin(theta), 0.0f ); // make_cfloat_t(sinf(theta), 0.0f); */
+  
+/*   float e = 2.0f * M_PI_F * (*(surface->thickness)) / p->wavelength; */
+/* /\*   cfloat_t ratio13sin = cuCmulf(cuCmulf(cuCdivf(n1, n3), cuCdivf(n1, n3)), cuCmulf(sin1, sin1)); *\/ */
+/* /\*   cfloat_t cos3 = cuCsqrtf(cuCsubf(make_cfloat_t(1.0f,0.0f), ratio13sin)); *\/ */
+/* /\*   cfloat_t ratio12sin = cuCmulf(cuCmulf(cuCdivf(n1, n2), cuCdivf(n1, n2)), cuCmulf(sin1, sin1)); *\/ */
+/* /\*   cfloat_t cos2 = cuCsqrtf(cuCsubf(make_cfloat_t(1.0f,0.0f), ratio12sin)); *\/ */
+/* /\*   float u = cuCrealf(cuCmulf(n2, cos2)); *\/ */
+/* /\*   float v = cuCimagf(cuCmulf(n2, cos2)); *\/ */
+/*   cfloat_t ratio13sin = cfloat_mul(cfloat_mul(cfloat_divide(n1, n3), cfloat_divide(n1, n3)), cfloat_mul(sin1, sin1)); */
+/*   cfloat_t cos3       = cfloat_sqrt(one-ratio13sin); */
+/*   cfloat_t ratio12sin = cfloat_mul(cfloat_mul(cfloat_divide(n1, n2), cfloat_divide(n1, n2)), cfloat_mul(sin1, sin1)); */
+/*   cfloat_t cos2       = cfloat_sqrt(one-ratio12sin); */
+/*   float u             = cfloat_real(cfloat_mul(n2, cos2)); */
+/*   float v             = cfloat_real(cfloat_mul(n2, cos2)); */
+  
+/*   // s polarization */
+/*   cfloat_t s_n1c1 = cfloat_mul(n1, cos1); */
+/*   cfloat_t s_n2c2 = cfloat_mul(n2, cos2); */
+/*   cfloat_t s_n3c3 = cfloat_mul(n3, cos3); */
+/*   cfloat_t s_r12  = cfloat_divide( (s_n1c1-s_n2c2), (s_n1c1+s_n2c2) ); */
+/*   cfloat_t s_r23  = cfloat_divide( (s_n2c2-s_n3c3), (s_n2c2+s_n3c3) ); */
+/*   cfloat_t s_t12  = cfloat_divide( cfloat_mul(two, s_n1c1), (s_n1c1+s_n2c2) ); */
+/*   cfloat_t s_t23  = cfloat_divide( cfloat_mul(two, s_n2c2), (s_n2c2+s_n3c3) ); */
+/*   cfloat_t s_g    = cfloat_divide( s_n3c3, s_n1c1 ); */
+  
+/*   float s_abs_r12 = cfloat_abs(s_r12); */
+/*   float s_abs_r23 = cfloat_abs(s_r23); */
+/*   float s_abs_t12 = cfloat_abs(s_t12); */
+/*   float s_abs_t23 = cfloat_abs(s_t23); */
+/*   float s_arg_r12 = clCargf(s_r12); */
+/*   float s_arg_r23 = clCargf(s_r23); */
+/*   float s_exp1    = exp(2.0f * v * e); */
+  
+/*   float s_exp2 = 1.0f / s_exp1; */
+/*   float s_denom = s_exp1 + */
+/*     s_abs_r12 * s_abs_r12 * s_abs_r23 * s_abs_r23 * s_exp2 + */
+/*     2.0f * s_abs_r12 * s_abs_r23 * cos(s_arg_r23 + s_arg_r12 + 2.0f * u * e); */
+  
+/*   float s_r = s_abs_r12 * s_abs_r12 * s_exp1 + s_abs_r23 * s_abs_r23 * s_exp2 + */
+/*     2.0f * s_abs_r12 * s_abs_r23 * cos(s_arg_r23 - s_arg_r12 + 2.0f * u * e); */
+/*   s_r /= s_denom; */
+  
+/*   float s_t = cfloat_real(s_g) * s_abs_t12 * s_abs_t12 * s_abs_t23 * s_abs_t23; */
+/*   s_t /= s_denom; */
+  
+/*   // p polarization */
+/*   cfloat_t p_n2c1 = cfloat_mul(n2, cos1); */
+/*   cfloat_t p_n3c2 = cfloat_mul(n3, cos2); */
+/*   cfloat_t p_n2c3 = cfloat_mul(n2, cos3); */
+/*   cfloat_t p_n1c2 = cfloat_mul(n1, cos2); */
+/*   cfloat_t p_r12  = cfloat_divide((p_n2c1-p_n1c2), (p_n2c1+p_n1c2)); */
+/*   cfloat_t p_r23  = cfloat_divide((p_n3c2-p_n2c3), (p_n3c2+p_n2c3)); */
+/*   cfloat_t p_t12  = cfloat_divide(cfloat_mul(cfloat_mul(two, n1), cos1), (p_n2c1+p_n1c2)); */
+/*   cfloat_t p_t23  = cfloat_divide(cfloat_mul(cfloat_mul(two, n2), cos2), (p_n3c2+p_n2c3)); */
+/*   cfloat_t p_g    = cfloat_divide(cfloat_mul(n3, cos3), cfloat_mul(n1, cos1)); */
+  
+/*   float p_abs_r12 = cfloat_abs(p_r12); */
+/*   float p_abs_r23 = cfloat_abs(p_r23); */
+/*   float p_abs_t12 = cfloat_abs(p_t12); */
+/*   float p_abs_t23 = cfloat_abs(p_t23); */
+/*   float p_arg_r12 = clCargf(p_r12); */
+/*   float p_arg_r23 = clCargf(p_r23); */
+/*   float p_exp1    = exp(2.0f * v * e); */
+  
+/*   float p_exp2 = 1.0f / p_exp1; */
+/*   float p_denom = p_exp1 + */
+/*     p_abs_r12 * p_abs_r12 * p_abs_r23 * p_abs_r23 * p_exp2 + */
+/*     2.0f * p_abs_r12 * p_abs_r23 * cos(p_arg_r23 + p_arg_r12 + 2.0f * u * e); */
+  
+/*   float p_r = p_abs_r12 * p_abs_r12 * p_exp1 + p_abs_r23 * p_abs_r23 * p_exp2 + */
+/*     2.0f * p_abs_r12 * p_abs_r23 * cos(p_arg_r23 - p_arg_r12 + 2.0f * u * e); */
+/*   p_r /= p_denom; */
+  
+/*   float p_t = cfloat_real(p_g) * p_abs_t12 * p_abs_t12 * p_abs_t23 * p_abs_t23; */
+/*   p_t /= p_denom; */
+  
+/*   // calculate s polarization fraction, identical to propagate_at_boundary */
+/*   float3 inv_dir = -p->direction; */
+/*   float incident_angle  = get_theta( &(s->surface_normal), &inv_dir); */
+/*   float refracted_angle = asin(sin(incident_angle)*s->refractive_index1/s->refractive_index2); */
+  
+/*   float3 incident_plane_normal       = cross(p->direction, s->surface_normal); */
+/*   float incident_plane_normal_length = length(incident_plane_normal); */
+  
+/*   if (incident_plane_normal_length < 1e-6f) */
+/*     incident_plane_normal = p->polarization; */
+/*   else */
+/*     incident_plane_normal /= incident_plane_normal_length; */
+  
+/*   float normal_coefficient = dot(p->polarization, incident_plane_normal); */
+/*   float normal_probability = normal_coefficient * normal_coefficient; // i.e. s polarization fraction */
+  
+/*   float transmit = normal_probability * s_t + (1.0f - normal_probability) * p_t; */
+/*   if (!surface->transmissive) */
+/*     transmit = 0.0f; */
+  
+/*   float reflect = normal_probability * s_r + (1.0f - normal_probability) * p_r; */
+/*   float absorb = 1.0f - transmit - reflect; */
+  
+/*   if (use_weights && p->weight > WEIGHT_LOWER_THRESHOLD && absorb < (1.0f - WEIGHT_LOWER_THRESHOLD)) { */
+/*     // Prevent absorption and reweight accordingly */
+/*     float survive = 1.0f - absorb; */
+/*     absorb = 0.0f; */
+/*     p->weight *= survive; */
+    
+/*     detect /= survive; */
+/*     reflect /= survive; */
+/*     transmit /= survive; */
+/*   } */
+  
+/*   if (use_weights && detect > 0.0f) { */
+/*     p->history |= SURFACE_DETECT; */
+/*     p->weight *= detect; */
+/*     return BREAK; */
+/*   } */
+  
+/*   float uniform_sample = clrand_uniform(rng, 0.0f, 1.0f); */
+  
+/*   if (uniform_sample < absorb) { */
+/*     // detection probability is conditional on absorption here */
+/*     float uniform_sample_detect = clrand_uniform(rng, 0.0f, 1.0f); */
+/*     if (uniform_sample_detect < detect) */
+/*       p->history |= SURFACE_DETECT; */
+/*     else */
+/*       p->history |= SURFACE_ABSORB; */
+    
+/*     return BREAK; */
+/*   } */
+/*   else if (uniform_sample < absorb + reflect || !surface->transmissive) { */
+/*     // reflect, specularly (default) or diffusely */
+/*     float uniform_sample_reflect = clrand_uniform(rng, 0.0f, 1.0f); */
+/*     if (uniform_sample_reflect < reflect_diffuse) */
+/*       return propagate_at_diffuse_reflector(p, s, rng); */
+/*     else */
+/*       return propagate_at_specular_reflector(p, s); */
+/*   } */
+/*   else { */
+/*     // refract and transmit */
+/*     p->direction = rotate_with_vec( &(s->surface_normal), M_PI_F-refracted_angle, &incident_plane_normal); */
+/*     p->polarization = cross(incident_plane_normal, p->direction); */
+/*     p->polarization /= length(p->polarization); */
+/*     p->history |= SURFACE_TRANSMIT; */
+/*     return CONTINUE; */
+/*   } */
 
-    float cos_t1 = dot(p.direction, s.surface_normal);
-    if (cos_t1 < 0.0f)
-        cos_t1 = -cos_t1;
-    float theta = acosf(cos_t1);
 
-    cuFloatComplex cos1 = make_cuFloatComplex(cosf(theta), 0.0f);
-    cuFloatComplex sin1 = make_cuFloatComplex(sinf(theta), 0.0f);
-
-    float e = 2.0f * PI * surface->thickness / p.wavelength;
-    cuFloatComplex ratio13sin = cuCmulf(cuCmulf(cuCdivf(n1, n3), cuCdivf(n1, n3)), cuCmulf(sin1, sin1));
-    cuFloatComplex cos3 = cuCsqrtf(cuCsubf(make_cuFloatComplex(1.0f,0.0f), ratio13sin));
-    cuFloatComplex ratio12sin = cuCmulf(cuCmulf(cuCdivf(n1, n2), cuCdivf(n1, n2)), cuCmulf(sin1, sin1));
-    cuFloatComplex cos2 = cuCsqrtf(cuCsubf(make_cuFloatComplex(1.0f,0.0f), ratio12sin));
-    float u = cuCrealf(cuCmulf(n2, cos2));
-    float v = cuCimagf(cuCmulf(n2, cos2));
-
-    // s polarization
-    cuFloatComplex s_n1c1 = cuCmulf(n1, cos1);
-    cuFloatComplex s_n2c2 = cuCmulf(n2, cos2);
-    cuFloatComplex s_n3c3 = cuCmulf(n3, cos3);
-    cuFloatComplex s_r12 = cuCdivf(cuCsubf(s_n1c1, s_n2c2), cuCaddf(s_n1c1, s_n2c2));
-    cuFloatComplex s_r23 = cuCdivf(cuCsubf(s_n2c2, s_n3c3), cuCaddf(s_n2c2, s_n3c3));
-    cuFloatComplex s_t12 = cuCdivf(cuCmulf(make_cuFloatComplex(2.0f,0.0f), s_n1c1), cuCaddf(s_n1c1, s_n2c2));
-    cuFloatComplex s_t23 = cuCdivf(cuCmulf(make_cuFloatComplex(2.0f,0.0f), s_n2c2), cuCaddf(s_n2c2, s_n3c3));
-    cuFloatComplex s_g = cuCdivf(s_n3c3, s_n1c1);
-
-    float s_abs_r12 = cuCabsf(s_r12);
-    float s_abs_r23 = cuCabsf(s_r23);
-    float s_abs_t12 = cuCabsf(s_t12);
-    float s_abs_t23 = cuCabsf(s_t23);
-    float s_arg_r12 = cuCargf(s_r12);
-    float s_arg_r23 = cuCargf(s_r23);
-    float s_exp1 = exp(2.0f * v * e);
-
-    float s_exp2 = 1.0f / s_exp1;
-    float s_denom = s_exp1 +
-                    s_abs_r12 * s_abs_r12 * s_abs_r23 * s_abs_r23 * s_exp2 +
-                    2.0f * s_abs_r12 * s_abs_r23 * cosf(s_arg_r23 + s_arg_r12 + 2.0f * u * e);
-
-    float s_r = s_abs_r12 * s_abs_r12 * s_exp1 + s_abs_r23 * s_abs_r23 * s_exp2 +
-                2.0f * s_abs_r12 * s_abs_r23 * cosf(s_arg_r23 - s_arg_r12 + 2.0f * u * e);
-    s_r /= s_denom;
-
-    float s_t = cuCrealf(s_g) * s_abs_t12 * s_abs_t12 * s_abs_t23 * s_abs_t23;
-    s_t /= s_denom;
-
-    // p polarization
-    cuFloatComplex p_n2c1 = cuCmulf(n2, cos1);
-    cuFloatComplex p_n3c2 = cuCmulf(n3, cos2);
-    cuFloatComplex p_n2c3 = cuCmulf(n2, cos3);
-    cuFloatComplex p_n1c2 = cuCmulf(n1, cos2);
-    cuFloatComplex p_r12 = cuCdivf(cuCsubf(p_n2c1, p_n1c2), cuCaddf(p_n2c1, p_n1c2));
-    cuFloatComplex p_r23 = cuCdivf(cuCsubf(p_n3c2, p_n2c3), cuCaddf(p_n3c2, p_n2c3));
-    cuFloatComplex p_t12 = cuCdivf(cuCmulf(cuCmulf(make_cuFloatComplex(2.0f,0.0f), n1), cos1), cuCaddf(p_n2c1, p_n1c2));
-    cuFloatComplex p_t23 = cuCdivf(cuCmulf(cuCmulf(make_cuFloatComplex(2.0f,0.0f), n2), cos2), cuCaddf(p_n3c2, p_n2c3));
-    cuFloatComplex p_g = cuCdivf(cuCmulf(n3, cos3), cuCmulf(n1, cos1));
-
-    float p_abs_r12 = cuCabsf(p_r12);
-    float p_abs_r23 = cuCabsf(p_r23);
-    float p_abs_t12 = cuCabsf(p_t12);
-    float p_abs_t23 = cuCabsf(p_t23);
-    float p_arg_r12 = cuCargf(p_r12);
-    float p_arg_r23 = cuCargf(p_r23);
-    float p_exp1 = exp(2.0f * v * e);
-
-    float p_exp2 = 1.0f / p_exp1;
-    float p_denom = p_exp1 +
-                    p_abs_r12 * p_abs_r12 * p_abs_r23 * p_abs_r23 * p_exp2 +
-                    2.0f * p_abs_r12 * p_abs_r23 * cosf(p_arg_r23 + p_arg_r12 + 2.0f * u * e);
-
-    float p_r = p_abs_r12 * p_abs_r12 * p_exp1 + p_abs_r23 * p_abs_r23 * p_exp2 +
-                2.0f * p_abs_r12 * p_abs_r23 * cosf(p_arg_r23 - p_arg_r12 + 2.0f * u * e);
-    p_r /= p_denom;
-
-    float p_t = cuCrealf(p_g) * p_abs_t12 * p_abs_t12 * p_abs_t23 * p_abs_t23;
-    p_t /= p_denom;
-
-    // calculate s polarization fraction, identical to propagate_at_boundary
-    float incident_angle = get_theta(s.surface_normal,-p.direction);
-    float refracted_angle = asinf(sinf(incident_angle)*s.refractive_index1/s.refractive_index2);
-
-    float3 incident_plane_normal = cross(p.direction, s.surface_normal);
-    float incident_plane_normal_length = norm(incident_plane_normal);
-
-    if (incident_plane_normal_length < 1e-6f)
-        incident_plane_normal = p.polarization;
-    else
-        incident_plane_normal /= incident_plane_normal_length;
-
-    float normal_coefficient = dot(p.polarization, incident_plane_normal);
-    float normal_probability = normal_coefficient * normal_coefficient; // i.e. s polarization fraction
-
-    float transmit = normal_probability * s_t + (1.0f - normal_probability) * p_t;
-    if (!surface->transmissive)
-        transmit = 0.0f;
-
-    float reflect = normal_probability * s_r + (1.0f - normal_probability) * p_r;
-    float absorb = 1.0f - transmit - reflect;
-
-    if (use_weights && p.weight > WEIGHT_LOWER_THRESHOLD && absorb < (1.0f - WEIGHT_LOWER_THRESHOLD)) {
-        // Prevent absorption and reweight accordingly
-        float survive = 1.0f - absorb;
-        absorb = 0.0f;
-        p.weight *= survive;
-
-        detect /= survive;
-        reflect /= survive;
-        transmit /= survive;
-    }
-
-    if (use_weights && detect > 0.0f) {
-        p.history |= SURFACE_DETECT;
-        p.weight *= detect;
-        return BREAK;
-    }
-
-    float uniform_sample = curand_uniform(&rng);
-
-    if (uniform_sample < absorb) {
-        // detection probability is conditional on absorption here
-        float uniform_sample_detect = curand_uniform(&rng);
-        if (uniform_sample_detect < detect)
-            p.history |= SURFACE_DETECT;
-        else
-            p.history |= SURFACE_ABSORB;
-
-        return BREAK;
-    }
-    else if (uniform_sample < absorb + reflect || !surface->transmissive) {
-        // reflect, specularly (default) or diffusely
-        float uniform_sample_reflect = curand_uniform(&rng);
-        if (uniform_sample_reflect < reflect_diffuse)
-            return propagate_at_diffuse_reflector(p, s, rng);
-        else
-            return propagate_at_specular_reflector(p, s);
-    }
-    else {
-        // refract and transmit
-        p.direction = rotate(s.surface_normal, PI-refracted_angle, incident_plane_normal);
-        p.polarization = cross(incident_plane_normal, p.direction);
-        p.polarization /= norm(p.polarization);
-        p.history |= SURFACE_TRANSMIT;
-        return CONTINUE;
-    }
 } // propagate_complex
 
-__device__ int
-propagate_at_wls(Photon &p, State &s, curandState &rng, Surface *surface, bool use_weights=false)
+int propagate_at_wls(Photon *p, State *s, __global clrandState *rng, Surface *surface, bool use_weights)
 {
-    float absorb = interp_property(surface, p.wavelength, surface->absorb);
-    float reflect_specular = interp_property(surface, p.wavelength, surface->reflect_specular);
-    float reflect_diffuse = interp_property(surface, p.wavelength, surface->reflect_diffuse);
-    float reemit = interp_property(surface, p.wavelength, surface->reemit);
+  float absorb = interp_surface_property(surface, p->wavelength, surface->absorb);
+  float reflect_specular = interp_surface_property(surface, p->wavelength, surface->reflect_specular);
+  float reflect_diffuse = interp_surface_property(surface, p->wavelength, surface->reflect_diffuse);
+  float reemit = interp_surface_property(surface, p->wavelength, surface->reemit);
 
-    float uniform_sample = curand_uniform(&rng);
+  float uniform_sample = clrand_uniform(rng, 0.0f, 1.0f);
+  
+  if (use_weights && p->weight > WEIGHT_LOWER_THRESHOLD && absorb < (1.0f - WEIGHT_LOWER_THRESHOLD)) {
+    // Prevent absorption and reweight accordingly
+    float survive = 1.0f - absorb;
+    absorb = 0.0f;
+    p->weight *= survive;
+    reflect_diffuse /= survive;
+    reflect_specular /= survive;
+  }
 
-    if (use_weights && p.weight > WEIGHT_LOWER_THRESHOLD && absorb < (1.0f - WEIGHT_LOWER_THRESHOLD)) {
-        // Prevent absorption and reweight accordingly
-        float survive = 1.0f - absorb;
-        absorb = 0.0f;
-        p.weight *= survive;
-        reflect_diffuse /= survive;
-        reflect_specular /= survive;
+  if (uniform_sample < absorb) {
+    float uniform_sample_reemit = clrand_uniform(rng, 0.0f, 1.0f);
+    if (uniform_sample_reemit < reemit) {
+      p->history |= SURFACE_REEMIT;
+      p->wavelength = sample_cdf_interp( rng, surface->n, surface->wavelength0, surface->step, surface->reemission_cdf);
+      p->direction = uniform_sphere(rng);
+      p->polarization = cross(uniform_sphere(rng), p->direction);
+      p->polarization /= length(p->polarization);
+      return CONTINUE;
+    } else {
+      p->history |= SURFACE_ABSORB;
+      return BREAK;
     }
-
-    if (uniform_sample < absorb) {
-        float uniform_sample_reemit = curand_uniform(&rng);
-        if (uniform_sample_reemit < reemit) {
-            p.history |= SURFACE_REEMIT;
-            p.wavelength = sample_cdf(&rng, surface->n, surface->wavelength0, surface->step, surface->reemission_cdf);
-	    p.direction = uniform_sphere(&rng);
-	    p.polarization = cross(uniform_sphere(&rng), p.direction);
-	    p.polarization /= norm(p.polarization);
-            return CONTINUE;
-        } else {
-	  p.history |= SURFACE_ABSORB;
-	  return BREAK;
-	}
-    }
-    else if (uniform_sample < absorb + reflect_specular + reflect_diffuse) {
-        // choose how to reflect, defaulting to diffuse
-        float uniform_sample_reflect = curand_uniform(&rng) * (reflect_specular + reflect_diffuse);
-        if (uniform_sample_reflect < reflect_specular)
-            return propagate_at_specular_reflector(p, s);
-        else
-            return propagate_at_diffuse_reflector(p, s, rng);
-    }
-    else {
-        p.history |= SURFACE_TRANSMIT;
-        return CONTINUE;
-    }
+  }
+  else if (uniform_sample < absorb + reflect_specular + reflect_diffuse) {
+    // choose how to reflect, defaulting to diffuse
+    float uniform_sample_reflect = clrand_uniform(rng,0.0f,1.0f) * (reflect_specular + reflect_diffuse);
+    if (uniform_sample_reflect < reflect_specular)
+      return propagate_at_specular_reflector(p, s);
+    else
+      return propagate_at_diffuse_reflector(p, s, rng);
+  }
+  else {
+    p->history |= SURFACE_TRANSMIT;
+    return CONTINUE;
+  }
 } // propagate_at_wls
 
-__device__ int
-propagate_at_surface(Photon &p, State &s, curandState &rng, Geometry *geometry,
-                     bool use_weights=false)
+int propagate_at_surface(Photon *p, State *s, __global clrandState *rng, __local Geometry *geometry, bool use_weights)
 {
-    Surface *surface = geometry->surfaces[s.surface_index];
-
-    if (surface->model == SURFACE_COMPLEX)
-        return propagate_complex(p, s, rng, surface, use_weights);
-    else if (surface->model == SURFACE_WLS)
-        return propagate_at_wls(p, s, rng, surface, use_weights);
-    else 
+  //Surface* surface = geometry->surfaces[s.surface_index];
+  Surface surface;
+  fill_surface_struct( s->surface_index, &surface, geometry );
+  
+  if (*(surface.model) == SURFACE_COMPLEX)
+    return propagate_complex(p, s, rng, &surface, use_weights);
+  else if ( *(surface.model) == SURFACE_WLS)
+    return propagate_at_wls(p, s, rng, &surface, use_weights);
+  else 
     {
-        // use default surface model: do a combination of specular and
-        // diffuse reflection, detection, and absorption based on relative
-        // probabilties
-
-        // since the surface properties are interpolated linearly, we are
-        // guaranteed that they still sum to 1.0.
-        float detect = interp_property(surface, p.wavelength, surface->detect);
-        float absorb = interp_property(surface, p.wavelength, surface->absorb);
-        float reflect_diffuse = interp_property(surface, p.wavelength, surface->reflect_diffuse);
-        float reflect_specular = interp_property(surface, p.wavelength, surface->reflect_specular);
-
-        float uniform_sample = curand_uniform(&rng);
-
-        if (use_weights && p.weight > WEIGHT_LOWER_THRESHOLD && absorb < (1.0f - WEIGHT_LOWER_THRESHOLD)) 
+      // use default surface model: do a combination of specular and
+      // diffuse reflection, detection, and absorption based on relative
+      // probabilties
+      
+      // since the surface properties are interpolated linearly, we are
+      // guaranteed that they still sum to 1.0.
+      float detect           = interp_surface_property( &surface, p->wavelength, surface.detect);
+      float absorb           = interp_surface_property( &surface, p->wavelength, surface.absorb);
+      float reflect_diffuse  = interp_surface_property( &surface, p->wavelength, surface.reflect_diffuse);
+      float reflect_specular = interp_surface_property( &surface, p->wavelength, surface.reflect_specular);
+      
+      float uniform_sample = clrand_uniform(rng, 0.0f, 1.0f);
+      
+      if (use_weights && p->weight > WEIGHT_LOWER_THRESHOLD && absorb < (1.0f - WEIGHT_LOWER_THRESHOLD)) 
         {
-            // Prevent absorption and reweight accordingly
-            float survive = 1.0f - absorb;
-            absorb = 0.0f;
-            p.weight *= survive;
-
-            // Renormalize remaining probabilities
-            detect /= survive;
-            reflect_diffuse /= survive;
-            reflect_specular /= survive;
+	  // Prevent absorption and reweight accordingly
+	  float survive = 1.0f - absorb;
+	  absorb = 0.0f;
+	  p->weight *= survive;
+	  
+	  // Renormalize remaining probabilities
+	  detect /= survive;
+	  reflect_diffuse /= survive;
+	  reflect_specular /= survive;
         }
-
-        // For default surface model
-        //   SURFACE_ABSORB(BREAK)
-        //   SURFACE_DETECT(BREAK)
-        //   REFLECT_DIFFUSE(CONTINUE) .direction .polarization
-        //   REFLECT_SPECULAR(CONTINUE) .direction
-        //
-
-        if (use_weights && detect > 0.0f) {
-            p.history |= SURFACE_DETECT;
-            p.weight *= detect;
-            return BREAK;
-        }
-
-        if (uniform_sample < absorb) {
-            p.history |= SURFACE_ABSORB;
-            return BREAK;
-        }
-        else if (uniform_sample < absorb + detect) {
-            p.history |= SURFACE_DETECT;
-            return BREAK;
-        }
-        else if (uniform_sample < absorb + detect + reflect_diffuse)
-            return propagate_at_diffuse_reflector(p, s, rng);
-        else
-            return propagate_at_specular_reflector(p, s);
+      
+      // For default surface model
+      //   SURFACE_ABSORB(BREAK)
+      //   SURFACE_DETECT(BREAK)
+      //   REFLECT_DIFFUSE(CONTINUE) .direction .polarization
+      //   REFLECT_SPECULAR(CONTINUE) .direction
+      //
+      
+      if (use_weights && detect > 0.0f) {
+	p->history |= SURFACE_DETECT;
+	p->weight *= detect;
+	return BREAK;
+      }
+      
+      if (uniform_sample < absorb) {
+	p->history |= SURFACE_ABSORB;
+	return BREAK;
+      }
+      else if (uniform_sample < absorb + detect) {
+	p->history |= SURFACE_DETECT;
+	return BREAK;
+      }
+      else if (uniform_sample < absorb + detect + reflect_diffuse)
+	return propagate_at_diffuse_reflector(p, s, rng);
+      else
+	return propagate_at_specular_reflector(p, s);
     }
-
+  
 } // propagate_at_surface
 
 #endif

@@ -13,8 +13,8 @@ uint4 get_packed_node(__local Geometry *geometry, const unsigned int i);
 void put_packed_node(__local Geometry *geometry, const unsigned int i, const uint4 *node);
 Node get_node(__local Geometry *geometry, const unsigned int i);
 Triangle get_triangle(__local Geometry *geometry, const unsigned int i);
-float interp_material_property(Material *m, const float *x, const float *fp);
-float interp_surface_property(Surface *m, const float *x, const float *fp);
+float interp_material_property(Material *m, const float x, __global const float *fp);
+float interp_surface_property(Surface *m, const float x, __global const float *fp);
 void fill_geostruct( __local Geometry* g,
                      __global float3* vertices, __global uint3* triangles,
                      __global unsigned int *material_codes, __global unsigned int *colors,
@@ -29,6 +29,8 @@ void fill_geostruct( __local Geometry* g,
                      __global unsigned int *model, __global unsigned int *transmissive, __global float *thickness, 
                      float3 world_origin, float world_scale, int nprimary_nodes,
                      int nwavelengths, float step, float wavelength0 );
+void fill_material_struct( unsigned int material_index, Material* m, __local Geometry* g );
+void fill_surface_struct( unsigned int surface_index, Surface* s, __local Geometry* g );
 
 // Definitions
 float3 to_float3(const uint3 *a)
@@ -98,30 +100,30 @@ Node get_node(__local Geometry *geometry, const unsigned int i)
 /*     return fp[jl] + (*x-(m->wavelength0 + jl*m->step))*(fp[jl+1]-fp[jl])/m->step; */
 /* } */
 
-float interp_material_property(Material *m, const float *x, const float *fp)
+float interp_material_property(Material *m, const float x, __global const float *fp)
 {
-    if (*x < m->wavelength0)
+    if (x < m->wavelength0)
 	return fp[0];
 
-    if (*x > (m->wavelength0 + (m->n-1)*m->step))
+    if (x > (m->wavelength0 + (m->n-1)*m->step))
 	return fp[m->n-1];
 
-    int jl = (*x-m->wavelength0)/m->step;
+    int jl = (x-m->wavelength0)/m->step;
 
-    return fp[jl] + (*x-(m->wavelength0 + jl*m->step))*(fp[jl+1]-fp[jl])/m->step;
+    return fp[jl] + (x-(m->wavelength0 + jl*m->step))*(fp[jl+1]-fp[jl])/m->step;
 }
 
-float interp_surface_property(Surface *m, const float *x, const float *fp)
+float interp_surface_property(Surface *m, const float x, __global const float *fp)
 {
-    if (*x < m->wavelength0)
+    if (x < m->wavelength0)
 	return fp[0];
 
-    if (*x > (m->wavelength0 + (m->n-1)*m->step))
+    if (x > (m->wavelength0 + (m->n-1)*m->step))
 	return fp[m->n-1];
 
-    int jl = (*x-m->wavelength0)/m->step;
+    int jl = (x-m->wavelength0)/m->step;
 
-    return fp[jl] + (*x-(m->wavelength0 + jl*m->step))*(fp[jl+1]-fp[jl])/m->step;
+    return fp[jl] + (x-(m->wavelength0 + jl*m->step))*(fp[jl+1]-fp[jl])/m->step;
 }
 
 void fill_geostruct( __local Geometry* g,
@@ -172,6 +174,39 @@ void fill_geostruct( __local Geometry* g,
   g->nwavelengths = nwavelengths;
   g->step = step;
   g->wavelength0 = wavelength0;
+}
+
+void fill_material_struct( unsigned int material_index, Material* m, __local Geometry* g ) {
+  // the material arrays in Geometry are unrolled
+  unsigned int offset = material_index*g->nwavelengths;
+  m->refractive_index  = (g->refractive_index + offset);
+  m->absorption_length = (g->absorption_length + offset);
+  m->scattering_length = (g->scattering_length + offset);
+  m->reemission_prob   = (g->reemission_prob + offset);
+  m->reemission_cdf    = (g->reemission_cdf + offset);
+  m->n = g->nwavelengths;
+  m->step = g->step;
+  m->wavelength0 = g->wavelength0;
+}
+
+void fill_surface_struct( unsigned int surface_index, Surface* s, __local Geometry* g ) {
+  // the material arrays in Geometry are unrolled
+  unsigned int offset = surface_index*g->nwavelengths;
+  s->detect           = (g->detect + offset);
+  s->absorb           = (g->absorb + offset);
+  s->reemit           = (g->reemit + offset);
+  s->reflect_diffuse  = (g->reflect_diffuse + offset);
+  s->reflect_specular = (g->reflect_specular + offset);
+  s->eta              = (g->eta + offset);
+  s->k                = (g->k + offset);
+  s->reemission_cdf   = (g->surf_reemission_cdf + offset);
+  s->model            = (g->model + offset);
+  s->transmissive     = (g->transmissive + offset);
+  s->thickness        = (g->thickness + offset);
+
+  s->n = g->nwavelengths;
+  s->step = g->step;
+  s->wavelength0 = g->wavelength0;
 }
 
 #endif

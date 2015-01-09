@@ -268,8 +268,8 @@ class GPUGeometry(object):
             # No relevant way to pass struct into OpenCL kernel. We have to pass everything by arrays
             # We then build a geometry struct later in the kernel
             # provided below is example/test of passing the data
-            if True: # for debuggin
-            #if False: #
+            #if True: # for debuggin
+            if False: #
                 print "loading geometry_structs.cl"
                 geostructsmod = cltools.get_cl_module( "geometry_structs.cl", cl_context, options=cltools.cl_options, include_source_directory=True )
                 geostructsfunc = GPUFuncs( geostructsmod )

@@ -1,5 +1,6 @@
 import os
 os.environ['PYOPENCL_CTX']='1'
+os.environ['PYOPENCL_COMPILER_OUTPUT']='1'
 from unittest_find import unittest
 import numpy as np
 

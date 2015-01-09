@@ -1,3 +1,5 @@
+//-*-c++-*-
+
 #ifndef __MESH_H__
 #define __MESH_H__
 
@@ -145,7 +147,7 @@ int intersect_mesh(const float3 *origin, const float3* direction, __local Geomet
     {
       unsigned int first_child = child_ptr_stack[curr];
       unsigned int nchild = nchild_ptr_stack[curr];
-      curr--;
+       curr--;
 
       for (unsigned int i=first_child; i < first_child + nchild; i++) {
 	Node node = get_node(g, i);
@@ -194,19 +196,20 @@ int intersect_mesh(const float3 *origin, const float3* direction, __local Geomet
 	}
       }    // loop over children, starting with first_child
 
-    }       // while nodes on stack
+   }       // while nodes on stack
 
-   // if (blockIdx.x == 0 && threadIdx.x == 0) {
-   //   printf("node gets: %d\n", count);
-   //   printf("triangle count: %d\n", tri_count);
-   // }
+  if (get_group_id(0) == 0 && get_local_id(0) == 0) {
+     printf("node gets: %d\n", count);
+     printf("triangle count: %d\n", tri_count);
+   }
 
-  //printf("node gets: %d triangle count: %d maxcurr: %d hitsame: %d \n", count, tri_count, maxcurr, hitsame );
+  printf("node gets: %d triangle count: %d maxcurr: %d hitsame: %d \n", count, tri_count, maxcurr, hitsame );
   
   return triangle_index;
 }
 
 
+// we don't put together the full geometry struct, as all we are doing is calculating distance to each mesh
 __kernel void distance_to_mesh(int nthreads, __global float3 *_origin, __global float3 *_direction, __global float* _distance,
 			       //__global Geometry *g)
 			       __global float3 *vertices, __global uint3 *triangles, 
