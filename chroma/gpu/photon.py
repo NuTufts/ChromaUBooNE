@@ -70,8 +70,6 @@ class GPUPhotons(object):
             module = get_module('propagate.cl', cl_context, options=api_options, include_source_directory=True)
         self.gpu_funcs = GPUFuncs(module)
 
-
-
         # Replicate the photons to the rest of the slots if needed
         if ncopies > 1:
             max_blocks = 1024
@@ -85,16 +83,17 @@ class GPUPhotons(object):
                                                 np.int32(nphotons),
                                                 block=(nthreads_per_block,1,1), grid=(blocks, 1))
 
-        raise RuntimeError('bail')
-
         # Save the duplication information for the iterate_copies() method
         self.true_nphotons = nphotons
         self.ncopies = ncopies
 
     def get(self):
-        pos = self.pos.get().view(np.float32).reshape((len(self.pos),3))
-        dir = self.dir.get().view(np.float32).reshape((len(self.dir),3))
-        pol = self.pol.get().view(np.float32).reshape((len(self.pol),3))
+        ncols = 3
+        if api.is_gpu_api_opencl():
+            ncols = 4 # must include padding
+        pos = self.pos.get().view(np.float32).reshape((len(self.pos),ncols))
+        dir = self.dir.get().view(np.float32).reshape((len(self.dir),ncols))
+        pol = self.pol.get().view(np.float32).reshape((len(self.pol),ncols))
         wavelengths = self.wavelengths.get()
         t = self.t.get()
         last_hit_triangles = self.last_hit_triangles.get()
@@ -119,7 +118,7 @@ class GPUPhotons(object):
     @profile_if_possible
     def propagate(self, gpu_geometry, rng_states, nthreads_per_block=64,
                   max_blocks=1024, max_steps=10, use_weights=False,
-                  scatter_first=0):
+                  scatter_first=0, cl_context=None):
         """Propagate photons on GPU to termination or max_steps, whichever
         comes first.
 
@@ -137,10 +136,21 @@ class GPUPhotons(object):
         # Order photons initially in the queue to put the clones next to each other
         for copy in xrange(self.ncopies):
             input_queue[1+copy::self.ncopies] = np.arange(self.true_nphotons, dtype=np.uint32) + copy * self.true_nphotons
-        input_queue_gpu = ga.to_gpu(input_queue)
+        if api.is_gpu_api_cuda():
+            input_queue_gpu = ga.to_gpu(input_queue)
+        elif api.is_gpu_api_opencl():
+            comqueue = cl.CommandQueue(cl_context)
+            input_queue_gpu = ga.to_device(comqueue,input_queue[1:]) # why the offset?
+
         output_queue = np.zeros(shape=nphotons+1, dtype=np.uint32)
         output_queue[0] = 1
-        output_queue_gpu = ga.to_gpu(output_queue)
+        if api.is_gpu_api_cuda():
+            output_queue_gpu = ga.to_gpu(output_queue)
+        elif api.is_gpu_api_opencl():
+            output_queue_gpu = ga.to_device(comqueue,output_queue)
+
+        print input_queue_gpu.get()
+        print output_queue
 
         while step < max_steps:
             # Just finish the rest of the steps if the # of photons is low
@@ -151,8 +161,35 @@ class GPUPhotons(object):
 
             for first_photon, photons_this_round, blocks in \
                     chunk_iterator(nphotons, nthreads_per_block, max_blocks):
-                self.gpu_funcs.propagate(np.int32(first_photon), np.int32(photons_this_round), input_queue_gpu[1:], output_queue_gpu, rng_states, self.pos, self.dir, self.wavelengths, self.pol, self.t, self.flags, self.last_hit_triangles, self.weights, np.int32(nsteps), np.int32(use_weights), np.int32(scatter_first), gpu_geometry.gpudata, block=(nthreads_per_block,1,1), grid=(blocks, 1))
-
+                if api.is_gpu_api_cuda():
+                    self.gpu_funcs.propagate(np.int32(first_photon), np.int32(photons_this_round), 
+                                             input_queue_gpu[1:], output_queue_gpu, rng_states, 
+                                             self.pos, self.dir, self.wavelengths, self.pol, self.t, self.flags, self.last_hit_triangles, 
+                                             self.weights, np.int32(nsteps), np.int32(use_weights), np.int32(scatter_first), 
+                                             gpu_geometry.gpudata, block=(nthreads_per_block,1,1), grid=(blocks, 1))
+                elif api.is_gpu_api_opencl():
+                    self.gpu_funcs.propagate( comqueue, (nthreads_per_block,1,1), (blocks, 1,1),
+                                              np.int32(first_photon), np.int32(photons_this_round),
+                                              input_queue_gpu.data, output_queue_gpu.data,
+                                              rng_states.data, 
+                                              self.pos.data, self.dir.data, self.wavelengths.data, self.pol.data, self.t.data, 
+                                              self.flags.data, self.last_hit_triangles.data, self.weights.data,
+                                              np.int32(nsteps), np.int32(use_weights), np.int32(scatter_first),
+                                              gpu_geometry.world_scale, gpu_geometry.world_origin, np.int32(len(gpu_geometry.nodes)),
+                                              gpu_geometry.material_data['n'], gpu_geometry.material_data['step'], gpu_geometry.material_data["wavelength0"],
+                                              gpu_geometry.vertices.data, gpu_geometry.triangles.data,
+                                              gpu_geometry.material_codes.data, gpu_geometry.colors.data,
+                                              gpu_geometry.nodes.data, gpu_geometry.extra_nodes.data,
+                                              gpu_geometry.material_data["nmaterials"],
+                                              gpu_geometry.material_data['refractive_index'].data, gpu_geometry.material_data['absorption_length'].data, 
+                                              gpu_geometry.material_data['scattering_length'].data, 
+                                              gpu_geometry.material_data['reemission_prob'].data, gpu_geometry.material_data['reemission_cdf'].data,
+                                              gpu_geometry.surface_data['nsurfaces'],
+                                              gpu_geometry.surface_data['detect'].data, gpu_geometry.surface_data['absorb'].data, gpu_geometry.surface_data['reemit'].data,
+                                              gpu_geometry.surface_data['reflect_diffuse'].data, gpu_geometry.surface_data['reflect_specular'].data,
+                                              gpu_geometry.surface_data['eta'].data, gpu_geometry.surface_data['k'].data, gpu_geometry.surface_data['reemission_cdf'].data,
+                                              gpu_geometry.surface_data['model'].data, gpu_geometry.surface_data['transmissive'].data, gpu_geometry.surface_data['thickness'].data,
+                                              g_times_l=True )
             step += nsteps
             scatter_first = 0 # Only allow non-zero in first pass
 
@@ -167,7 +204,10 @@ class GPUPhotons(object):
 
         if ga.max(self.flags).get() & (1 << 31):
             print >>sys.stderr, "WARNING: ABORTED PHOTONS"
-        cuda.Context.get_current().synchronize()
+        if api.is_gpu_api_cuda():
+            cuda.Context.get_current().synchronize()
+        elif api.is_gpu_api_opencl():
+            comqueue.finish()
 
 
     @profile_if_possible

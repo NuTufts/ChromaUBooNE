@@ -48,8 +48,7 @@ class TestPropagation(unittest.TestCase):
         # First make one step to check for strangeness
         photons_end = sim.simulate([photons], keep_photons_end=True,
                                    max_steps=1).next().photons_end
-
-        return
+        print photons_end.pos[0:10]
 
         self.assertFalse(np.isnan(photons_end.pos).any())
         self.assertFalse(np.isnan(photons_end.dir).any())

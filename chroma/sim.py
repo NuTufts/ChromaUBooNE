@@ -101,12 +101,10 @@ class Simulation(object):
 
         for ev in iterable:
             gpu_photons = GPUPhotons(ev.photons_beg,cl_context=self.context)
-            raise RuntimeError('bail!')
             gpu_photons.propagate(self.gpu_geometry, self.rng_states,
                                   nthreads_per_block=self.nthreads_per_block,
                                   max_blocks=self.max_blocks,
-                                  max_steps=max_steps)
-
+                                  max_steps=max_steps, cl_context=self.context)
             ev.nphotons = len(ev.photons_beg.pos)
 
             if not keep_photons_beg:

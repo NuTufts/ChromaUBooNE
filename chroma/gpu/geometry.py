@@ -394,6 +394,7 @@ class GPUGeometry(object):
         material_data["n"]                 = np.uint32(nwavelengths)
         material_data["step"]              = np.float32(wavelength_step)
         material_data["wavelength0"]       = np.float32(wavelengths[0])
+        material_data["nmaterials"]        = np.uint32( len(geometry.unique_materials) )
 
         nbytes = 0
         for data in material_data:
@@ -509,6 +510,7 @@ class GPUGeometry(object):
         surface_data["n"]                = np.uint32(nwavelengths)
         surface_data["step"]             = np.float32(wavelength_step)
         surface_data["wavelength0"]      = np.float32(wavelengths[0])
+        surface_data["nsurfaces"]        = np.uint32( len(geometry.unique_surfaces) )
         nbytes = 0
         for data in surface_data:
             nbytes += surface_data[data].nbytes
