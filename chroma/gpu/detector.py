@@ -55,10 +55,13 @@ class GPUDetector(GPUGeometry):
         elif api.is_gpu_api_opencl():
             self.solid_id_to_channel_index_gpu = ga.to_device( cl_queue, detector.solid_id_to_channel_index.astype(np.int32) )
             self.solid_id_to_channel_id_gpu    = ga.to_device( cl_queue, detector.solid_id_to_channel_id.astype(np.int32) )
-            self.nchannels = detector.num_channels()
+            self.nchannels        = np.int32( detector.num_channels() )
             self.time_cdf_x_gpu   = ga.to_device( cl_queue, detector.time_cdf[0].astype(np.float32) )
             self.time_cdf_y_gpu   = ga.to_device( cl_queue, detector.time_cdf[1].astype(np.float32) )
             self.charge_cdf_x_gpu = ga.to_device( cl_queue, detector.charge_cdf[0].astype(np.float32) )
             self.charge_cdf_y_gpu = ga.to_device( cl_queue, detector.charge_cdf[1].astype(np.float32) )
+            self.time_cdf_len     = np.int32(len(detector.time_cdf[0]))
+            self.charge_cdf_len   = np.int32(len(detector.charge_cdf[0]))
+            self.charge_unit      = np.float32(detector.charge_cdf[0][-1] / 2**16)
         else:
             raise RuntimeError("GPU API is neither OpenCL nor CUDA")

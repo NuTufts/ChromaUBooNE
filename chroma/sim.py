@@ -12,6 +12,7 @@ import chroma.gpu.tools as gputools
 from chroma.gpu.detector import GPUDetector
 from chroma.gpu.daq import GPUDaq
 from chroma.gpu.pdf import GPUKernelPDF
+from chroma.gpu.pdf import GPUPDF
 from chroma.gpu.geometry import GPUGeometry
 from chroma.gpu.photon import GPUPhotons
 
@@ -65,8 +66,8 @@ class Simulation(object):
             if hasattr(detector, 'num_channels'):
                 self.gpu_geometry = GPUDetector( detector, cl_context=self.context, cl_queue=self.clqueue )
                 self.gpu_daq = GPUDaq( self.gpu_geometry, cl_context=self.context, cl_queue=self.clqueue )
-                self.gpu_pdf = GPUPDF()
-                self.gpu_pdf_kernel = GPUKernelPDF()
+                self.gpu_pdf = GPUPDF( cl_context=self.context )
+                self.gpu_pdf_kernel = GPUKernelPDF( cl_context=self.context)
             else:
                 self.gpu_geometry = GPUGeometry(detector, cl_context=self.context, cl_queue=self.clqueue)
 
@@ -115,9 +116,9 @@ class Simulation(object):
 
             # Skip running DAQ if we don't have one
             if hasattr(self, 'gpu_daq') and run_daq:
-                self.gpu_daq.begin_acquire()
-                self.gpu_daq.acquire(gpu_photons, self.rng_states, nthreads_per_block=self.nthreads_per_block, max_blocks=self.max_blocks)
-                gpu_channels = self.gpu_daq.end_acquire()
+                self.gpu_daq.begin_acquire( cl_context=self.context )
+                self.gpu_daq.acquire(gpu_photons, self.rng_states, nthreads_per_block=self.nthreads_per_block, max_blocks=self.max_blocks, cl_context=self.context )
+                gpu_channels = self.gpu_daq.end_acquire( cl_context=self.context )
                 ev.channels = gpu_channels.get()
 
             yield ev

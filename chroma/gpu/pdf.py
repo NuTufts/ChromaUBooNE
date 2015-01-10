@@ -12,14 +12,16 @@ elif api.is_gpu_api_opencl():
 else:
     raise RuntimeError('API neither CUDA or OpenCL')
 
-from chroma.gpu.tools import chunk_iterator
+from chroma.gpu.tools import chunk_iterator, api_options
 from chroma.gpu.gpufuncs import GPUFuncs
 from chroma.tools import profile_if_possible, count_nonzero
 
 class GPUKernelPDF(object):
-    def __init__(self):
-        self.module = get_cu_module('pdf.cu', options=cuda_options,
-                                    include_source_directory=True)
+    def __init__(self, cl_context=None, cl_queue=None):
+        if api.is_gpu_api_cuda():
+            self.module = cutools.get_cu_module('pdf.cu', options=cutools.cuda_options, include_source_directory=True)
+        elif api.is_gpu_api_opencl():
+            self.module = cltools.get_cl_module('pdf.cl', cl_context, options=cltools.cl_options, include_source_directory=True)
         self.gpu_funcs = GPUFuncs(self.module)
 
     def setup_moments(self, nchannels, trange, qrange, time_only=True):
@@ -187,9 +189,11 @@ class GPUKernelPDF(object):
         return hitcount, pdf_values, np.zeros_like(pdf_values)
 
 class GPUPDF(object):
-    def __init__(self):
-        self.module = get_cu_module('pdf.cu', options=cuda_options,
-                                    include_source_directory=True)
+    def __init__(self, cl_context=None):
+        if api.is_gpu_api_cuda():
+            self.module = cutools.get_cu_module('pdf.cu', options=api_options, include_source_directory=True)
+        elif api.is_gpu_api_opencl():
+            self.module = cltools.get_cl_module('pdf.cl', cl_context, options=api_options, include_source_directory=True)
         self.gpu_funcs = GPUFuncs(self.module)
 
     def setup_pdf(self, nchannels, tbins, trange, qbins, qrange):
@@ -305,39 +309,67 @@ class GPUPDF(object):
         self.nearest_mc_gpu.fill(1e9)
 
     @profile_if_possible
-    def accumulate_pdf_eval(self, gpuchannels, nthreads_per_block=64, max_blocks=10000):
+    def accumulate_pdf_eval(self, gpuchannels, nthreads_per_block=64, max_blocks=10000, cl_queue=None):
         "Add the most recent results of run_daq() to the PDF evaluation."
-        self.work_queues = ga.empty(shape=self.event_nhit * (gpuchannels.ndaq+1), dtype=np.uint32)
+        if api.is_gpu_api_cuda():
+            self.work_queues = ga.empty(shape=self.event_nhit * (gpuchannels.ndaq+1), dtype=np.uint32)
+        elif api.is_gpu_api_opencl():
+            self.work_queues = ga.empty(cl_queue,shape=self.event_nhit * (gpuchannels.ndaq+1), dtype=np.uint32)
         self.work_queues.fill(1)
 
-        self.gpu_funcs.accumulate_bincount(np.int32(self.event_hit_gpu.size),
-                                           np.int32(gpuchannels.ndaq),
-                                           self.event_hit_gpu,
-                                           self.event_time_gpu,
-                                           gpuchannels.t,
-                                           self.eval_hitcount_gpu,
-                                           self.eval_bincount_gpu,
-                                           np.float32(self.min_twidth),
-                                           np.float32(self.trange[0]),
-                                           np.float32(self.trange[1]),
-                                           np.int32(self.min_bin_content),
-                                           self.map_channel_id_to_hit_offset_gpu,
-                                           self.work_queues,
-                                           block=(nthreads_per_block,1,1), 
-                                           grid=(self.event_hit_gpu.size//nthreads_per_block+1,1))
-        cuda.Context.get_current().synchronize()
+        if api.is_gpu_api_cuda():
+            self.gpu_funcs.accumulate_bincount(np.int32(self.event_hit_gpu.size),
+                                               np.int32(gpuchannels.ndaq),
+                                               self.event_hit_gpu,
+                                               self.event_time_gpu,
+                                               gpuchannels.t,
+                                               self.eval_hitcount_gpu,
+                                               self.eval_bincount_gpu,
+                                               np.float32(self.min_twidth),
+                                               np.float32(self.trange[0]),
+                                               np.float32(self.trange[1]),
+                                               np.int32(self.min_bin_content),
+                                               self.map_channel_id_to_hit_offset_gpu,
+                                               self.work_queues,
+                                               block=(nthreads_per_block,1,1), 
+                                               grid=(self.event_hit_gpu.size//nthreads_per_block+1,1))
+            cuda.Context.get_current().synchronize()
 
-        self.gpu_funcs.accumulate_nearest_neighbor_block(np.int32(self.event_nhit),
-                                                         np.int32(gpuchannels.ndaq),
-                                                         self.map_hit_offset_to_channel_id_gpu,
-                                                         self.work_queues,
-                                                         self.event_time_gpu,
-                                                         gpuchannels.t,
-                                                         self.nearest_mc_gpu,
-                                                         np.int32(self.min_bin_content),
-                                                         block=(nthreads_per_block,1,1), 
-                                                         grid=(self.event_nhit,1))
-        cuda.Context.get_current().synchronize()
+            self.gpu_funcs.accumulate_nearest_neighbor_block(np.int32(self.event_nhit),
+                                                             np.int32(gpuchannels.ndaq),
+                                                             self.map_hit_offset_to_channel_id_gpu,
+                                                             self.work_queues,
+                                                             self.event_time_gpu,
+                                                             gpuchannels.t,
+                                                             self.nearest_mc_gpu,
+                                                             np.int32(self.min_bin_content),
+                                                             block=(nthreads_per_block,1,1), 
+                                                             grid=(self.event_nhit,1))
+            cuda.Context.get_current().synchronize()
+
+        elif api.is_gpu_api_opencl():
+            self.gpu_funcs.accumulate_bincount( cl_queue, (nthreads_per_block,1,1), (self.event_hit_gpu.size//nthreads_per_block+1,1),
+                                                np.int32(gpuchannels.ndaq),
+                                                self.event_hit_gpu.data, self.event_time_gpu.data, gpuchannels.t.data,
+                                                self.eval_hitcount_gpu.data, self.eval_bincount_gpu.data,
+                                                np.float32(self.min_twidth), np.float32(self.trange[0]), np.float32(self.trange[1]),
+                                                np.int32(self.min_bin_content),
+                                                self.map_channel_id_to_hit_offset_gpu.data, self.work_queues.data, g_times_l = True )
+            cl_queue.finish()
+            self.gpu_funcs.accumulate_nearest_neighbor_block( cl_queue, (nthreads_per_block,1,1), (self.event_nhit,1),
+                                                              np.int32(self.event_nhit), np.int32(gpuchannels.ndaq),
+                                                              self.map_hit_offset_to_channel_id_gpu.data,
+                                                              self.work_queues.data,
+                                                              self.event_time_gpu.daa,
+                                                              gpuchannels.t.data,
+                                                              self.nearest_mc_gpu.data,
+                                                              np.int32(self.min_bin_content),
+                                                              g_time_l = True )
+            cl_queue.finish()
+                                                
+
+
+
 
     def get_pdf_eval(self):
         evhit = self.event_hit_gpu.get().astype(bool)

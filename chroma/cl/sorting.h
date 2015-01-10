@@ -5,7 +5,8 @@
 
 void swap( void* a, void* b, size_t size );
 void reverse(int n, void* array, size_t elemsize );
-void piksrt( int n, float* arrf );
+void piksrt( int n, __local float* arrf );
+void piksrt_device( int n, float* arrf );
 void piksrt2( int n, float* arrf, uint4* arrvec );
 unsigned long searchsorted(unsigned long n, float *arr, const float*x);
 void insert(unsigned long n, void *arr, unsigned long i, const void *x, size_t elemsize);
@@ -60,7 +61,26 @@ void reverse(int n, void* array, size_t elemsize ) {
 /*     } */
 /* } */
 // no way to compare values. when don't know type. we have to explicitly create function!
-void piksrt( int n, float* arrf ) {
+void piksrt( int n, __local float* arrf ) {
+  // example inputs
+  //int distance_table_len = 0;
+  //float distance_table[1000];
+
+  int i, j;
+  float atemp;
+
+  for (j=1; j<n; j++) {
+    atemp = *(arrf+j);
+    i = j-1;
+    while (i>=0 && *(arrf+i)>atemp) {
+      *(arrf+i+1) = atemp;
+      i--;
+    }
+    *(arrf+i+1) = atemp;
+  }
+}
+
+void piksrt_device( int n, float* arrf ) {
   // example inputs
   //int distance_table_len = 0;
   //float distance_table[1000];
