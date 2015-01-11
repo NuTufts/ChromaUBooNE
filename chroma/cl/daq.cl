@@ -187,7 +187,6 @@ __kernel void convert_sortable_int_to_float(int n, __global unsigned int *sortab
   int id = get_local_size(0)*get_group_id(0) + get_local_id(0);
     
   if (id < n) {
-    printf("convert id=%d: %u\n",id,sortable_ints[id]);
     float_output[id] = sortable_int_to_float(sortable_ints[id]);
   }
 }

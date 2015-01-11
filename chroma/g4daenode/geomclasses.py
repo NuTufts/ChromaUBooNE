@@ -1,7 +1,7 @@
 # stores the classes used by DAENode to store Geant4 properties
 import collada
 from collada.common import DaeObject
-from tools import read_properties
+from chroma.g4daenode.tools import read_properties
 
 class MaterialProperties(DaeObject):
     def __init__(self, properties, xmlnode):

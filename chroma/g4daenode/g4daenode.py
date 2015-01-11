@@ -4,9 +4,9 @@ import collada
 from collada.xmlutil import etree as ET
 from collada.xmlutil import writeXML, COLLADA_NS, E
 from collada.common import DaeObject
-from daeclasses import DAEExtra
-from geomclasses import MaterialProperties
-from tools import tag
+from chroma.g4daenode.daeclasses import DAEExtra
+from chroma.g4daenode.geomclasses import MaterialProperties
+from chroma.g4daenode.tools import tag
 
 # disable saves, which update the xmlnode, as the preexisting xmlnode for 
 # the basis objects are being copied anyhow

@@ -13,7 +13,11 @@ from chroma.sim import Simulation
 from chroma.event import Photons
 
 from chroma.demo.optics import r7081hqe_photocathode
-
+try:
+    import ROOT as rt
+    has_root = True
+except:
+    has_root = False
 class TestDetector(unittest.TestCase):
     def setUp(self):
         # Setup geometry
@@ -27,7 +31,11 @@ class TestDetector(unittest.TestCase):
         self.geo = geo
         self.sim = Simulation(self.geo, geant4_processes=0)
 
-    #@unittest.skip('Skipping time test')
+        self.rfile = rt.TFile("output_test_detector.root","recreate")
+        self.htime = rt.TH1D("htime","Time;ns",120, 80, 120 )
+        self.hcharge = rt.TH1D("hcharge","Charge;pe",100, 0.5, 1.5 )
+
+    @unittest.skip('Skipping time test')
     def testTime(self):
         '''Test PMT time distribution'''
 
@@ -47,10 +55,13 @@ class TestDetector(unittest.TestCase):
                           wavelengths=wavelengths)
 
         hit_times = []
-        for ev in self.sim.simulate( (photons for i in xrange(100)), keep_photons_end=True, keep_photons_beg=True):
-            if ev.channels.hit[0]:
-                hit_times.append(ev.channels.t[0])
-            print "Hits: ",ev.photons_end.pos," with t=",ev.channels.t[0],". starting from ",ev.photons_beg.pos, " Hit=",ev.channels.hit[0]
+        for ev in self.sim.simulate( (photons for i in xrange(500)), keep_photons_end=True, keep_photons_beg=False):
+            for n,hit in enumerate(ev.channels.hit):
+                if hit:
+                    hit_times.append(ev.channels.t[n])
+                    print "Hits from photon %d: "%(n),ev.photons_end.pos[n]," with t=",ev.channels.t[n]," q=",ev.channels.q[n],". starting from ",ev.photons_beg.pos[n], " Hit=",ev.channels.hit[n]
+                    self.htime.Fill( ev.channels.t[n] )
+                    self.hcharge.Fill( ev.channels.q[n] )
         hit_times = np.array(hit_times)
 
         self.assertAlmostEqual(hit_times.std(),  1.2, delta=1e-1)
@@ -69,26 +80,26 @@ class TestDetector(unittest.TestCase):
         phi = np.random.uniform(0, 2*np.pi, nphotons).astype(np.float32)
         pol[:,0] = np.cos(phi)
         pol[:,1] = np.sin(phi)
-        t = np.zeros(nphotons, dtype=np.float32)
+        t = np.zeros(nphotons, dtype=np.float32)+100.0
         wavelengths = np.empty(nphotons, np.float32)
         wavelengths.fill(400.0)
 
         photons = Photons(pos=pos, dir=dir, pol=pol, t=t, wavelengths=wavelengths)
 
         hit_charges = []
-        for ev in self.sim.simulate( (photons for i in xrange(100)), keep_photons_end=True, keep_photons_beg=True):
+        for ev in self.sim.simulate( (photons for i in xrange(500)), keep_photons_end=True, keep_photons_beg=False):
             if ev.channels.hit[0]:
                 hit_charges.append(ev.channels.q[0])
-            traveled = 0
-            for v in range(0,3):
-                traveled += ev.photons_end.pos[0][v]*ev.photons_end.pos[0][v]
-            traveled = np.sqrt(traveled)
-            print "Hits: ",ev.photons_end.pos," with q=",ev.channels.q[0],". starting from ",ev.photons_beg.pos, " Hit=",ev.channels.hit[0]," dist traveled=",traveled
+                self.hcharge.Fill( ev.channels.q[0] )
+                self.htime.Fill( ev.channels.t[0] )
+                print "Hits:  with q=",ev.channels.q[0],". Hit=",ev.channels.hit[0]
             #ev.photons_end.dump()
         hit_charges = np.array(hit_charges)
         
         self.assertAlmostEqual(hit_charges.mean(),  1.0, delta=1e-1)
         self.assertAlmostEqual(hit_charges.std(), 0.1, delta=1e-1)
+    def tearDown(self):
+        self.rfile.Write()
 
 if __name__ == "__main__":
     api.use_opencl()
