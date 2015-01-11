@@ -191,26 +191,32 @@ class GPUPhotons(object):
                                               gpu_geometry.surface_data['reflect_diffuse'].data, gpu_geometry.surface_data['reflect_specular'].data,
                                               gpu_geometry.surface_data['eta'].data, gpu_geometry.surface_data['k'].data, gpu_geometry.surface_data['reemission_cdf'].data,
                                               gpu_geometry.surface_data['model'].data, gpu_geometry.surface_data['transmissive'].data, gpu_geometry.surface_data['thickness'].data,
-                                              g_times_l=True )
+                                              g_times_l=True ).wait()
             step += nsteps
             scatter_first = 0 # Only allow non-zero in first pass
 
             if step < max_steps:
-                temp = input_queue_gpu
-                input_queue_gpu = output_queue_gpu
-                output_queue_gpu = temp
-                # Assign with a numpy array of length 1 to silence
-                # warning from PyCUDA about setting array with different strides/storage orders.
-                output_queue_gpu[:1].set(np.ones(shape=1, dtype=np.uint32))
-                nphotons = input_queue_gpu[:1].get()[0] - 1
+                print "reset photon queues"
+                if api.is_gpu_api_cuda():
+                    temp = input_queue_gpu
+                    input_queue_gpu = output_queue_gpu
+                    output_queue_gpu = temp
+                    # Assign with a numpy array of length 1 to silence
+                    # warning from PyCUDA about setting array with different strides/storage orders.
+                    output_queue_gpu[:1].set(np.ones(shape=1, dtype=np.uint32))
+                    nphotons = input_queue_gpu[:1].get()[0] - 1
+                elif api.is_gpu_api_opencl():
+                    temp_out = output_queue_gpu.get()
+                    nphotons = temp_out[0]
+                    input_queue_gpu.set( comqueue, temp_out[1:] ) # set the input queue to have index of photons still need to be run
+                    output_queue_gpu[:1].set( comqueue, np.ones(shape=1,dtype=np.uint32) ) # reset first instance to be one
 
         if ga.max(self.flags).get() & (1 << 31):
             print >>sys.stderr, "WARNING: ABORTED PHOTONS"
         if api.is_gpu_api_cuda():
             cuda.Context.get_current().synchronize()
         elif api.is_gpu_api_opencl():
-            comqueue.finish()
-
+            cl.enqueue_barrier( comqueue )
 
     @profile_if_possible
     def select(self, target_flag, nthreads_per_block=64, max_blocks=1024,

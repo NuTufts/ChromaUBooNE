@@ -355,7 +355,7 @@ class GPUPDF(object):
                                                 np.float32(self.min_twidth), np.float32(self.trange[0]), np.float32(self.trange[1]),
                                                 np.int32(self.min_bin_content),
                                                 self.map_channel_id_to_hit_offset_gpu.data, self.work_queues.data, g_times_l = True )
-            cl_queue.finish()
+            #cl.enqueue_barrier( cl_queue )
             self.gpu_funcs.accumulate_nearest_neighbor_block( cl_queue, (nthreads_per_block,1,1), (self.event_nhit,1),
                                                               np.int32(self.event_nhit), np.int32(gpuchannels.ndaq),
                                                               self.map_hit_offset_to_channel_id_gpu.data,
@@ -365,10 +365,7 @@ class GPUPDF(object):
                                                               self.nearest_mc_gpu.data,
                                                               np.int32(self.min_bin_content),
                                                               g_time_l = True )
-            cl_queue.finish()
-                                                
-
-
+            #cl.enqueue_barrier( cl_queue )
 
 
     def get_pdf_eval(self):

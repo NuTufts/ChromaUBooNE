@@ -39,11 +39,11 @@ float clrand_uniform(__global clrandState *s, float low, float high)
 
 float3 uniform_sphere(__global clrandState *s)
 { 
-  float theta = clrand_uniform(s, 0.0f, 2*M_PI_F);
-  float u = clrand_uniform(s, -1.0f, 1.0f);
-  float c = sqrt(1.0f-u*u);
+  float phi = clrand_uniform(s, 0.0f, 2*M_PI_F);
+  float cos_th = clrand_uniform(s, -1.0f, 1.0f);
+  float sin_th = sqrt(1.0f-cos_th*cos_th);
 
-  return make_float3(c*cos(theta), c*sin(theta), u); 
+  return make_float3(sin_th*cos(phi), sin_th*sin(phi), cos_th); 
 } 
 
 float clrand_normal( __global clrandState* s ) {

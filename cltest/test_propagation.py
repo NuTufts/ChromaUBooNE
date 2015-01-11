@@ -31,7 +31,7 @@ class TestPropagation(unittest.TestCase):
         sim = Simulation(geo, geant4_processes=0)
 
         # Create initial photons
-        nphotons = 1000
+        nphotons = 5
         pos = np.tile([0,0,0], (nphotons,1)).astype(np.float32)
         dir = np.tile([0,0,1], (nphotons,1)).astype(np.float32)
         pol = np.zeros_like(pos)
@@ -46,8 +46,8 @@ class TestPropagation(unittest.TestCase):
                           wavelengths=wavelengths)
 
         # First make one step to check for strangeness
-        photons_end = sim.simulate([photons], keep_photons_end=True,
-                                   max_steps=1).next().photons_end
+        photons_end = sim.simulate([photons], keep_photons_end=True, max_steps=1).next().photons_end
+        print "FIRST STEP"
         print photons_end.pos[0:10]
 
         self.assertFalse(np.isnan(photons_end.pos).any())
@@ -60,10 +60,9 @@ class TestPropagation(unittest.TestCase):
         photons_end = sim.simulate([photons], keep_photons_end=True,
                                    max_steps=10).next().photons_end
         aborted = (photons_end.flags & (1 << 31)) > 0
-        print 'aborted photons: %1.1f' % \
-            (float(count_nonzero(aborted)) / nphotons)
+        print 'aborted photon fracttion: %1.1f' % (float(count_nonzero(aborted)) / nphotons)
         self.assertFalse(aborted.any())
-
+        print "LAST STEPS"
         print photons_end.pos[0:10]
         
 

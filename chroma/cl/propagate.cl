@@ -170,11 +170,10 @@ __kernel void propagate( int first_photon, int nthreads,
   State s;
   
   int steps = 0;
+
   while (steps < max_steps) {
     steps++;
-    
-    int command;
-    
+    int command;    
     // check for NaN and fail
     if (isnan(p.direction.x*p.direction.y*p.direction.z*p.position.x*p.position.y*p.position.z)) {
       p.history |= NO_HIT | NAN_ABORT;
@@ -208,10 +207,8 @@ __kernel void propagate( int first_photon, int nthreads,
     }
     
     propagate_at_boundary(&p, &s, rng);
-    //pdump( &p, photon_id, p.history, steps, command, id );
-
   } // while (steps < max_steps)
-  
+
   // return the values to the host
   //rng_states[id] = rng; // no need, we've been passing the address around. Maybe a bad idea.
   positions[photon_id] = p.position;
@@ -225,8 +222,8 @@ __kernel void propagate( int first_photon, int nthreads,
   
   // Not done, put photon in output queue
   if ((p.history & (NO_HIT | BULK_ABSORB | SURFACE_DETECT | SURFACE_ABSORB | NAN_ABORT)) == 0) {
-    int out_idx = atomic_add(output_queue, 1);
-    output_queue[out_idx] = photon_id;
+    int out_idx = atomic_add(output_queue, 1); // adds one to first address
+    output_queue[out_idx] = photon_id; // gives photon_id at sequential address
   }
   
 

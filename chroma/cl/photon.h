@@ -96,7 +96,9 @@ enum {
 
 // -----------------------------------------------------------------
 // declarations
-void pdump( Photon* p, int photon_id, int status, int steps, int command, int slot );
+void pdump( const Photon* p, int photon_id, int status, int steps, int command, int slot );
+//void print_photon_status( int status );
+//void print_photon_command( int command );
 int convert(int c);
 float get_theta(const float3 *a, const float3 *b);
 void fill_state(State* s, Photon* p, __local Geometry *g);
@@ -114,9 +116,10 @@ void sdump( State* s );
 // -----------------------------------------------------------------
 // definitions
 
-void pdump( Photon* p, int photon_id, int status, int steps, int command, int slot )
+void pdump( const Photon* p, int photon_id, int status, int steps, int command, int slot )
 {
   // printf only supported for computer capability > 2.0
+    printf("STATUS: ");
     switch(status)
     {
        case STATUS_NONE                   : printf("NONE             ")  ; break ;
@@ -135,6 +138,7 @@ void pdump( Photon* p, int photon_id, int status, int steps, int command, int sl
        default                            : printf("STATUS_UNKNOWN_ENUM_VALUE") ; break ;
     } 
 
+    printf("COMMAND: ");
     switch(command)
     {
        case  CONTINUE : printf("CONTINUE ") ; break ;
@@ -170,6 +174,39 @@ void pdump( Photon* p, int photon_id, int status, int steps, int command, int sl
 
     printf("\n");
 }
+
+
+/* void print_photon_status( int status ) { */
+/*   switch(status) */
+/*     { */
+/*     case STATUS_NONE                   : printf("NONE             ")  ; break ; */
+/*     case STATUS_HISTORY_COMPLETE       : printf("HISTORY_COMPLETE ")  ; break ; */
+/*     case STATUS_UNPACK                 : printf("UNPACK           ")  ; break ; */
+/*     case STATUS_NAN_FAIL               : printf("NAN_FAIL         ")  ; break ; */
+/*     case STATUS_FILL_STATE             : printf("FILL_STATE       ")  ; break ; */
+/*     case STATUS_NO_INTERSECTION        : printf("NO_INTERSECTION  ")  ; break ; */
+/*     case STATUS_TO_BOUNDARY            : printf("TO_BOUNDARY      ")  ; break ; */
+/*     case STATUS_AT_SURFACE             : printf("AT_SURFACE       ")  ; break ; */
+/*     case STATUS_AT_BOUNDARY            : printf("AT_BOUNDARY      ")  ; break ; */
+/*     case STATUS_BREAKOUT               : printf("BREAKOUT         ")  ; break ; */
+/*     case STATUS_ENQUEUE                : printf("ENQUEUE          ")  ; break ; */
+/*     case STATUS_DONE                   : printf("DONE             ")  ; break ; */
+/*     case STATUS_AT_SURFACE_UNEXPECTED  : printf("AT_SURFACE_UNEXPECTED") ; break ; */
+/*     default                            : printf("STATUS_UNKNOWN_ENUM_VALUE") ; break ; */
+/*     }  */
+/* } */
+
+/* void print_photon_command( int command ) { */
+/*   switch(command) */
+/*     { */
+/*     case  CONTINUE : printf("CONTINUE ") ; break ; */
+/*     case     BREAK : printf("BREAK    ") ; break ; */
+/*     case      PASS : printf("PASS     ") ; break ; */
+/*     case     START : printf("START    ") ; break ; */
+/*     case    RETURN : printf("RETURN   ") ; break ; */
+/*     default        : printf("         ") ; */
+/*     } */
+/* } */
 
 void sdump( State* s ) {
   printf("-------------------\n");
@@ -553,22 +590,23 @@ int propagate_at_specular_reflector(Photon *p, State *s)
 
 int propagate_at_diffuse_reflector(Photon *p, State *s, __global clrandState *rng)
 {
-    float ndotv;
-    do {
-	p->direction = uniform_sphere(rng);
-	ndotv = dot(p->direction, s->surface_normal);
-	if (ndotv < 0.0f) {
-	    p->direction = -p->direction;
-	    ndotv = -ndotv;
-	}
-    } while (! (clrand_uniform(rng, 0.0f, 1.0f) < ndotv) );
 
-    p->polarization = cross(uniform_sphere(rng), p->direction);
-    p->polarization /= length(p->polarization);
+  float ndotv;
+  do { 
+    p->direction = uniform_sphere(rng);
+    ndotv = dot(p->direction, s->surface_normal);
+    if (ndotv < 0.0f) {
+      p->direction = -p->direction;
+      ndotv = -ndotv;
+    }
+  } while (! (clrand_uniform(rng, 0.0f, 1.0f) < ndotv) );
+  
+  p->polarization = cross(uniform_sphere(rng), p->direction);
+  p->polarization = normalize( p->polarization );
 
-    p->history |= REFLECT_DIFFUSE;
-
-    return CONTINUE;
+  p->history |= REFLECT_DIFFUSE;
+  
+  return CONTINUE;
 } // propagate_at_diffuse_reflector
 
 int propagate_complex(Photon *p, State *s, __global clrandState *rng, Surface* surface, bool use_weights)
@@ -815,6 +853,7 @@ int propagate_at_surface(Photon *p, State *s, __global clrandState *rng, __local
       float reflect_specular = interp_surface_property( &surface, p->wavelength, surface.reflect_specular);
       
       float uniform_sample = clrand_uniform(rng, 0.0f, 1.0f);
+      //printf("prop_at_surf:: d: %.2f a:%.2f rdif:%.2f rspec:%.2f, sample=%.2f\n",detect,absorb,reflect_diffuse,reflect_specular,uniform_sample);
       
       if (use_weights && p->weight > WEIGHT_LOWER_THRESHOLD && absorb < (1.0f - WEIGHT_LOWER_THRESHOLD))
         {
@@ -850,10 +889,14 @@ int propagate_at_surface(Photon *p, State *s, __global clrandState *rng, __local
 	p->history |= SURFACE_DETECT;
 	return BREAK;
       }
-      else if (uniform_sample < absorb + detect + reflect_diffuse)
+      else if (uniform_sample < absorb + detect + reflect_diffuse) {
 	return propagate_at_diffuse_reflector(p, s, rng);
-      else
-	return propagate_at_specular_reflector(p, s);
+      }
+      else {
+	p->history |= REFLECT_SPECULAR;
+	//return propagate_at_specular_reflector(p, s);
+	return BREAK;
+      }
     }
   
 } // propagate_at_surface

@@ -18,7 +18,7 @@ class TestDetector(unittest.TestCase):
     def setUp(self):
         # Setup geometry
         cube = Detector(vacuum)
-        cube.add_pmt(Solid(box(10.0,10,10), vacuum, vacuum, surface=r7081hqe_photocathode))
+        cube.add_pmt(Solid(box(10.0,10.0,10.0), vacuum, vacuum, surface=r7081hqe_photocathode))
         cube.set_time_dist_gaussian(1.2, -6.0, 6.0)
         cube.set_charge_dist_gaussian(1.0, 0.1, 0.5, 1.5)
 
@@ -27,7 +27,7 @@ class TestDetector(unittest.TestCase):
         self.geo = geo
         self.sim = Simulation(self.geo, geant4_processes=0)
 
-    #@unittest.skip('Ray data file needs to be updated')
+    #@unittest.skip('Skipping time test')
     def testTime(self):
         '''Test PMT time distribution'''
 
@@ -48,7 +48,6 @@ class TestDetector(unittest.TestCase):
 
         hit_times = []
         for ev in self.sim.simulate( (photons for i in xrange(100)), keep_photons_end=True, keep_photons_beg=True):
-        #for ev in self.sim.simulate(photons for i in xrange(5)):
             if ev.channels.hit[0]:
                 hit_times.append(ev.channels.t[0])
             print "Hits: ",ev.photons_end.pos," with t=",ev.channels.t[0],". starting from ",ev.photons_beg.pos, " Hit=",ev.channels.hit[0]
@@ -74,8 +73,7 @@ class TestDetector(unittest.TestCase):
         wavelengths = np.empty(nphotons, np.float32)
         wavelengths.fill(400.0)
 
-        photons = Photons(pos=pos, dir=dir, pol=pol, t=t,
-                          wavelengths=wavelengths)
+        photons = Photons(pos=pos, dir=dir, pol=pol, t=t, wavelengths=wavelengths)
 
         hit_charges = []
         for ev in self.sim.simulate( (photons for i in xrange(100)), keep_photons_end=True, keep_photons_beg=True):
@@ -86,6 +84,7 @@ class TestDetector(unittest.TestCase):
                 traveled += ev.photons_end.pos[0][v]*ev.photons_end.pos[0][v]
             traveled = np.sqrt(traveled)
             print "Hits: ",ev.photons_end.pos," with q=",ev.channels.q[0],". starting from ",ev.photons_beg.pos, " Hit=",ev.channels.hit[0]," dist traveled=",traveled
+            #ev.photons_end.dump()
         hit_charges = np.array(hit_charges)
         
         self.assertAlmostEqual(hit_charges.mean(),  1.0, delta=1e-1)

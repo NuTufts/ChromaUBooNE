@@ -58,9 +58,9 @@ class GPUDaq(object):
         elif api.is_gpu_api_opencl():
             self.earliest_time_gpu     = ga.empty(cl_queue, gpu_detector.nchannels*ndaq, dtype=np.float32)
             self.earliest_time_int_gpu = ga.empty(cl_queue, gpu_detector.nchannels*ndaq, dtype=np.uint32)
-            self.channel_history_gpu   = ga.zeros_like(self.earliest_time_int_gpu)
-            self.channel_q_int_gpu     = ga.zeros_like(self.earliest_time_int_gpu)
-            self.channel_q_gpu         = ga.zeros(cl_queue, len(self.earliest_time_int_gpu), dtype=np.float32)
+            self.channel_history_gpu   = ga.zeros(cl_queue, gpu_detector.nchannels*ndaq, dtype=np.uint32 )
+            self.channel_q_int_gpu     = ga.zeros(cl_queue, gpu_detector.nchannels*ndaq, dtype=np.uint32 )
+            self.channel_q_gpu         = ga.zeros(cl_queue, gpu_detector.nchannels*ndaq, dtype=np.float32 )
             self.detector_gpu          = gpu_detector # struct not made in opencl mode, so we keep a copy of the class
             self.module                = cltools.get_cl_module('daq.cl', cl_context, options=api_options, include_source_directory=True)
         else:
@@ -79,12 +79,14 @@ class GPUDaq(object):
         elif api.is_gpu_api_opencl():
             comqueue = cl.CommandQueue(cl_context)
             self.gpu_funcs.reset_earliest_time_int( comqueue, (nthreads_per_block,1,1), (len(self.earliest_time_int_gpu)//nthreads_per_block+1,1),
-                                                    np.float32(1e9), np.int32(len(self.earliest_time_int_gpu)),
-                                                    self.earliest_time_int_gpu.data, g_times_l=True )
-            comqueue.finish()
-        self.channel_q_int_gpu.fill(0)
-        self.channel_q_gpu.fill(0)
-        self.channel_history_gpu.fill(0)
+                                                    np.float32(1e9), 
+                                                    np.int32(len(self.earliest_time_int_gpu)),
+                                                    self.earliest_time_int_gpu.data, g_times_l=True ).wait()
+        self.channel_q_int_gpu.fill(0,queue=comqueue)
+        self.channel_q_gpu.fill(0,queue=comqueue)
+        self.channel_history_gpu.fill(0,queue=comqueue)
+        cl.enqueue_barrier(comqueue)
+        
 
     def acquire(self, gpuphotons, rng_states, nthreads_per_block=64, max_blocks=1024, start_photon=None, nphotons=None, weight=1.0, cl_context=None):
         if start_photon is None:
@@ -122,7 +124,7 @@ class GPUDaq(object):
                                             self.detector_gpu.nchannels, self.detector_gpu.time_cdf_len, self.detector_gpu.charge_cdf_len, self.detector_gpu.charge_unit,
                                             # ---------------------
                                             self.earliest_time_int_gpu.data, self.channel_q_int_gpu.data, self.channel_history_gpu.data, np.float32(weight),
-                                            g_times_l=True )
+                                            g_times_l=True ).wait()
                                             
         else:
             for first_photon, photons_this_round, blocks in \
@@ -151,11 +153,12 @@ class GPUDaq(object):
                                                  # ---------------------
                                                  self.earliest_time_int_gpu.data,  self.channel_q_int_gpu.data, self.channel_history_gpu.data,
                                                  np.int32(self.ndaq), np.int32(self.stride), np.float32(weight),
-                                                 g_times_l=True )
+                                                 g_times_l=True ).wait()
         if api.is_gpu_api_cuda():
             cuda.Context.get_current().synchronize()
         elif api.is_gpu_api_opencl():
-            comqueue.finish()
+            cl.enqueue_barrier(comqueue)
+
     
     def end_acquire(self, nthreads_per_block=64, cl_context=None ):
         if api.is_gpu_api_cuda():
@@ -170,17 +173,13 @@ class GPUDaq(object):
             self.gpu_funcs.convert_sortable_int_to_float( comqueue, (nthreads_per_block,1,1), (len(self.channel_q_int_gpu)//nthreads_per_block+1,1),
                                                           np.int32(len(self.earliest_time_int_gpu)),
                                                           self.earliest_time_int_gpu.data, self.earliest_time_gpu.data,
-                                                          g_times_l = True )
+                                                          g_times_l = True ).wait()
             self.gpu_funcs.convert_charge_int_to_float( comqueue, (nthreads_per_block,1,1), (len(self.channel_q_int_gpu)//nthreads_per_block+1,1),
-                                                        # -- Detector Struct -- 
-                                                        self.detector_gpu.solid_id_to_channel_index_gpu.data,
-                                                        self.detector_gpu.time_cdf_x_gpu.data, self.detector_gpu.time_cdf_y_gpu.data,
-                                                        self.detector_gpu.charge_cdf_x_gpu.data, self.detector_gpu.charge_cdf_y_gpu.data,
-                                                        self.detector_gpu.nchannels, self.detector_gpu.time_cdf_len, self.detector_gpu.charge_cdf_len, self.detector_gpu.charge_unit,
-                                                        # ---------------------
-                                                        self.channel_q_int_gpu.data, self.channel_q_gpu.data, 
-                                                        g_times_l = True )
-            comqueue.finish()
+                                                        self.detector_gpu.nchannels,
+                                                        self.detector_gpu.charge_unit,
+                                                        self.channel_q_int_gpu.data, 
+                                                        self.channel_q_gpu.data, 
+                                                        g_times_l = True ).wait()
 
         return GPUChannels(self.earliest_time_gpu, self.channel_q_gpu, self.channel_history_gpu, self.ndaq, self.stride)
 

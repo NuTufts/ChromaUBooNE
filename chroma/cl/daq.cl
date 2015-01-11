@@ -59,11 +59,14 @@ __kernel void run_daq(__global clrandState *s,
   }
   barrier( CLK_LOCAL_MEM_FENCE );
 
+
+
   if (id < nphotons) {
+
     __global clrandState* rng = s+id;
     int photon_id    = id + first_photon;
     int triangle_id  = last_hit_triangles[photon_id];
-		
+
     if (triangle_id > -1) {
       int solid_id         = solid_map[triangle_id];
       unsigned int history = photon_histories[photon_id];
@@ -82,10 +85,6 @@ __kernel void run_daq(__global clrandState *s,
 				    detector.charge_cdf_y);
 	  unsigned int charge_int = round( charge / detector.charge_unit );
 	  
-	  //atomicMin(earliest_time_int + channel_index, time_int);
-	  //atomicAdd(channel_q_int + channel_index, charge_int);
-	  //atomicOr(channel_histories + channel_index, history);
-
 	  atomic_min( earliest_time_int + channel_index, time_int );
 	  atomic_add( channel_q_int + channel_index, charge_int );
 	  atomic_or( channel_histories + channel_index, history );
@@ -179,6 +178,7 @@ __kernel void run_daq_many(__global clrandState *s, unsigned int detection_state
   }
 
   //s[id] = rng;
+  barrier( CLK_GLOBAL_MEM_FENCE );
 }
 
 __kernel void convert_sortable_int_to_float(int n, __global unsigned int *sortable_ints, __global float *float_output)
@@ -187,26 +187,25 @@ __kernel void convert_sortable_int_to_float(int n, __global unsigned int *sortab
   int id = get_local_size(0)*get_group_id(0) + get_local_id(0);
     
   if (id < n) {
-    //float_output[id] = sortable_int_to_float(sortable_ints[id]);
+    printf("convert id=%d: %u\n",id,sortable_ints[id]);
     float_output[id] = sortable_int_to_float(sortable_ints[id]);
   }
 }
 
-__kernel void convert_charge_int_to_float(// --- Detector *detector, ---
-					  __global int* solid_id_to_channel_index,
-					  __global float* time_cdf_x,   __global float* time_cdf_y,
-					  __global float *charge_cdf_x, __global float *charge_cdf_y,
-					  int nchannels, int time_cdf_len, int charge_cdf_len, float charge_unit,
-					  // ---------------------------
+// __kernel void convert_charge_int_to_float(// --- Detector *detector, ---
+// 					  __global int* solid_id_to_channel_index,
+// 					  __global float* time_cdf_x,   __global float* time_cdf_y,
+// 					  __global float *charge_cdf_x, __global float *charge_cdf_y,
+// 					  int nchannels, int time_cdf_len, int charge_cdf_len, float charge_unit,
+// 					  // ---------------------------
+// 					  __global unsigned int *charge_int,
+// 					  __global float *charge_float)
+__kernel void convert_charge_int_to_float(int nchannels, float charge_unit,
 					  __global unsigned int *charge_int,
 					  __global float *charge_float)
 {
-  //int id = threadIdx.x + blockDim.x * blockIdx.x;
   int id = get_local_size(0)*get_group_id(0) + get_local_id(0);
 	
-  //if (id < detector->nchannels)
-  //charge_float[id] = charge_int[id] * detector->charge_unit;
-
   if (id < nchannels)
     charge_float[id] = charge_int[id] * charge_unit;
 
