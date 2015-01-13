@@ -280,6 +280,7 @@ class Geometry(NPYCacheable):
         self.solid_rotations = []
         self.solid_displacements = []
         self.bvh = None
+        self.collada2chroma = None
 
     def add_solid(self, solid, rotation=None, displacement=None):
         """
