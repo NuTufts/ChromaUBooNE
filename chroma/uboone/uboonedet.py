@@ -1,14 +1,20 @@
 import os,sys
 import numpy as np
-from chroma.geometry import Geometry
+from chroma.detector import Detector
 from chroma.g4daenode.collada_to_chroma import ColladaToChroma
 from chroma.g4daenode.g4daenode import DAENode
 import chroma.uboone.surfaces as uboonesurfaces
+from chroma.loader import load_bvh
 
 # Geometry class representing the MicroBooNE geometry
 
-class ubooneDet( Geometry ):
-    def __init__(self, daefile, acrylic_detect=True, acrylic_wls=False):
+class ubooneDet( Detector ):
+    def __init__(self, daefile, acrylic_detect=True, acrylic_wls=False,
+                 bvh_name="uboone_bvh_default",
+                 auto_build_bvh=True, read_bvh_cache=True,
+                 update_bvh_cache=True, cache_dir=None,
+                 cuda_device=None, cl_device=None ):
+
         if acrylic_detect and acrylic_wls:
             raise ValueError('cannot have acrylic act as both detector and wavelength shifter')
         # run constructor of base class
@@ -37,13 +43,21 @@ class ubooneDet( Geometry ):
         self.unique_surfaces = []
         surface_index_dict = {}
         surface_indices = []
-        for id, mats in enumerate( (self.material1_index, self.material2_index) ):
+        for id, mats in enumerate( zip(self.material1_index, self.material2_index) ):
             surface = uboonesurfaces.get_boundary_surface( self.unique_materials[mats[0]].name, self.unique_materials[mats[1]].name )
             if surface not in self.unique_surfaces:
                 self.unique_surfaces.append( surface )
                 surface_index_dict[ surface ] = self.unique_surfaces.index( surface )
             surface_indices.append( surface_index_dict[ surface ] )
         self.surface_index = np.array( surface_indices, dtype=np.uint32 )
+        print "number of surface indicies: ",len(self.surface_index)
+
+        if self.bvh is None:
+            self.bvh = load_bvh(self, auto_build_bvh=auto_build_bvh,
+                                read_bvh_cache=read_bvh_cache,
+                                update_bvh_cache=update_bvh_cache,
+                                cache_dir=cache_dir,
+                                cuda_device=cuda_device, cl_device=cl_device)
 
         # OK, we should be ready to go
         
