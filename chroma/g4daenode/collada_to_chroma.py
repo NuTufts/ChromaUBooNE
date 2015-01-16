@@ -646,7 +646,7 @@ class ColladaToChroma(object):
 
         if self.bvh:
             self.add_bvh()
-
+        return self.chroma_geometry
 
     def make_chroma_material_map(self, chroma_geometry):
         """

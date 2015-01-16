@@ -260,15 +260,20 @@ class Surface(NPYCacheable):
 
     def set(self, name, value, wavelengths=standard_wavelengths):
         if np.iterable(value):
-            if len(value) != len(wavelengths):
+            if isinstance(value,np.ndarray) and len(value.shape)==2:
+                wavelengths = value[:,1].ravel()
+                value = value[:,0].ravel()
+            elif len(value) != len(wavelengths):
                 raise ValueError('shape mismatch')
         else:
+            # single value
             value = np.tile(value, len(wavelengths))
 
         if (np.asarray(value) < 0.0).any():
             raise Exception('all probabilities must be >= 0.0')
 
         self.__dict__[name] = np.array(zip(wavelengths, value), dtype=np.float32)
+
     def __repr__(self):
         return '<Surface %s>' % self.name
         
@@ -280,7 +285,6 @@ class Geometry(NPYCacheable):
         self.solid_rotations = []
         self.solid_displacements = []
         self.bvh = None
-        self.collada2chroma = None
 
     def add_solid(self, solid, rotation=None, displacement=None):
         """
