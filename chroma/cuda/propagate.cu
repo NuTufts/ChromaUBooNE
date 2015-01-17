@@ -158,7 +158,7 @@ propagate(int first_photon, int nthreads, unsigned int *input_queue,
     while (steps < max_steps) {
 	steps++;
 
-	int command;
+	int command = 0;
 
 	// check for NaN and fail
 	if (isnan(p.direction.x*p.direction.y*p.direction.z*p.position.x*p.position.y*p.position.z)) {
@@ -167,6 +167,7 @@ propagate(int first_photon, int nthreads, unsigned int *input_queue,
 	}
 
 	fill_state(s, p, g);
+	pdump( p, photon_id, p.history, steps, command, id );
 
 	if (p.last_hit_triangle == -1)
 	    break;
@@ -209,6 +210,7 @@ propagate(int first_photon, int nthreads, unsigned int *input_queue,
 	int out_idx = atomicAdd(output_queue, 1);
 	output_queue[out_idx] = photon_id;
     }
+    pdump( p, photon_id, p.history, steps, 0, id );
 } // propagate
 
 } // extern "C"

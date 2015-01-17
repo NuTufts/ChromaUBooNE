@@ -48,10 +48,13 @@ class ubooneDet( Detector ):
         surface_indices = []
         for id, mats in enumerate( zip(self.material1_index, self.material2_index) ):
             surface = uboonesurfaces.get_boundary_surface( self.unique_materials[mats[0]].name, self.unique_materials[mats[1]].name )
-            if surface not in self.unique_surfaces:
-                self.unique_surfaces.append( surface )
-                surface_index_dict[ surface ] = self.unique_surfaces.index( surface )
-            surface_indices.append( surface_index_dict[ surface ] )
+            if surface==None:
+                surface_indices.append( -1 )
+            else:
+                if surface not in self.unique_surfaces:
+                    self.unique_surfaces.append( surface )
+                    surface_index_dict[ surface ] = self.unique_surfaces.index( surface )
+                surface_indices.append( surface_index_dict[ surface ] )
         self.surface_index = np.array( surface_indices, dtype=np.int )
         print "number of surface indicies: ",len(self.surface_index)
 

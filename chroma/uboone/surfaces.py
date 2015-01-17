@@ -114,6 +114,8 @@ boundary_surfaces = { ("STEEL_STAINLESS_Fe7Cr2Ni", "LAr"): make_steel_surface(),
 def get_boundary_surface( matname1, matname2 ):
     m1 = materials.clean_material_name( matname1 )
     m2 = materials.clean_material_name( matname2 )
+    if m1==m2:
+        return None
     if m1 not in materials.materialnames or m2 not in materials.materialnames:
         raise ValueError( "bounary between materials not defined" )
     if (m1,m2) in boundary_surfaces:

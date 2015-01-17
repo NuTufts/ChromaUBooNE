@@ -4,6 +4,7 @@ import numpy as np
 import chroma.api as api
 api.use_cuda()
 from chroma.sim import Simulation
+from chroma.event import Photons
 from chroma.uboone.uboonedet import ubooneDet
 try:
     import ROOT as rt
@@ -34,7 +35,10 @@ class TestUbooneDetector(unittest.TestCase):
         photons = Photons(pos=pos, dir=dir, pol=pol, t=t, wavelengths=wavelengths)
         hit_charges = []
         for ev in self.sim.simulate( (photons for i in xrange(1)), keep_photons_end=True, keep_photons_beg=False, ):
-            pass
+            ev.photons_end.dump()
+            lht = ev.photons_end[0].last_hit_triangles
+            print ev.photons_end[0].last_hit_triangles
+            print self.geo.material1_index[lht], self.geo.material2_index[lht]
 
 if __name__ == "__main__":
 
