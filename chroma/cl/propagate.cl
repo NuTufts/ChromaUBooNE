@@ -181,7 +181,7 @@ __kernel void propagate( int first_photon, int nthreads,
     }
     
     fill_state(&s, &p, &sg);
-    //pdump( &p, photon_id, p.history, steps, command, id );
+    //    pdump( &p, photon_id, p.history, steps, command, id );
 
     if (p.last_hit_triangle == -1)
       break;
@@ -207,6 +207,8 @@ __kernel void propagate( int first_photon, int nthreads,
     }
     
     propagate_at_boundary(&p, &s, rng);
+
+    //pdump( &p, photon_id, p.history, steps, command, id );
   } // while (steps < max_steps)
 
   // return the values to the host

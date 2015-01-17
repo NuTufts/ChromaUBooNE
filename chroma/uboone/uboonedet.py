@@ -24,6 +24,8 @@ class ubooneDet( Detector ):
             super( ubooneDet, self ).__init__( "bialkali" )
         else:
             print "Warning: no detector material specified"
+        self.acrylic_detect = acrylic_detect
+        self.acrylic_wls    = acrylic_wls
 
         # We use g4dae tools to create geometry with mesh whose triangles have materials assigned to them
         DAENode.parse( daefile, sens_mats=[] )
@@ -49,7 +51,7 @@ class ubooneDet( Detector ):
                 self.unique_surfaces.append( surface )
                 surface_index_dict[ surface ] = self.unique_surfaces.index( surface )
             surface_indices.append( surface_index_dict[ surface ] )
-        self.surface_index = np.array( surface_indices, dtype=np.uint32 )
+        self.surface_index = np.array( surface_indices, dtype=np.int )
         print "number of surface indicies: ",len(self.surface_index)
 
         if self.bvh is None:
@@ -59,5 +61,10 @@ class ubooneDet( Detector ):
                                 cache_dir=cache_dir,
                                 cuda_device=cuda_device, cl_device=cl_device)
 
+        self._setup_photodetectors()
+
         # OK, we should be ready to go
+    def _setup_photodetectors( self ):
+        self.set_time_dist_gaussian( 1.2, -6.0, 6.0 )
+        self.set_charge_dist_gaussian( 1.0, 0.1, 0.5, 1.5 )
         
