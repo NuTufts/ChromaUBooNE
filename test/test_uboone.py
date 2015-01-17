@@ -31,7 +31,10 @@ class TestUbooneDetector(unittest.TestCase):
         wavelengths = np.empty(nphotons, np.float32)
         wavelengths.fill(128.0)
 
-        pass
+        photons = Photons(pos=pos, dir=dir, pol=pol, t=t, wavelengths=wavelengths)
+        hit_charges = []
+        for ev in self.sim.simulate( (photons for i in xrange(1)), keep_photons_end=True, keep_photons_beg=False, ):
+            pass
 
 if __name__ == "__main__":
 

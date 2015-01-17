@@ -26,7 +26,7 @@ class TestDetector(unittest.TestCase):
         cube.set_time_dist_gaussian(1.2, -6.0, 6.0)
         cube.set_charge_dist_gaussian(1.0, 0.1, 0.5, 1.5)
 
-        geo = create_geometry_from_obj(cube, update_bvh_cache=True)
+        geo = create_geometry_from_obj(cube, update_bvh_cache=True, read_bvh_cache=False)
         print "Number of channels in detector: ",geo.num_channels()
         self.geo = geo
         self.sim = Simulation(self.geo, geant4_processes=0)
@@ -87,7 +87,7 @@ class TestDetector(unittest.TestCase):
         photons = Photons(pos=pos, dir=dir, pol=pol, t=t, wavelengths=wavelengths)
 
         hit_charges = []
-        for ev in self.sim.simulate( (photons for i in xrange(500)), keep_photons_end=True, keep_photons_beg=False):
+        for ev in self.sim.simulate( (photons for i in xrange(1)), keep_photons_end=True, keep_photons_beg=False):
             if ev.channels.hit[0]:
                 hit_charges.append(ev.channels.q[0])
                 self.hcharge.Fill( ev.channels.q[0] )

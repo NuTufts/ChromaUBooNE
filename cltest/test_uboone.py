@@ -4,6 +4,7 @@ from unittest_find import unittest
 import numpy as np
 import chroma.api as api
 from chroma.sim import Simulation
+from chroma.event import Photons
 from chroma.uboone.uboonedet import ubooneDet
 try:
     import ROOT as rt
@@ -14,15 +15,28 @@ except:
 class TestUbooneDetector(unittest.TestCase):
     def setUp(self):
         #self.geo = ubooneDet( "../gdml/microboone_nowires_chroma_simplified.dae",  acrylic_detect=False, acrylic_wls=True )
-        self.geo = ubooneDet( "../gdml/microboone_nowires_chroma_simplified.dae",  acrylic_detect=True, acrylic_wls=False )
+        self.geo = ubooneDet( "../gdml/microboone_nowires_chroma_simplified.dae",  acrylic_detect=True, acrylic_wls=False,  read_bvh_cache=False )
         self.sim = Simulation(self.geo, geant4_processes=0)
+        self.origin = self.geo.bvh.world_coords.world_origin
+
+        print "Triangles"
+        print self.geo.mesh.triangles
+
+        print "Vertices"
+        print self.geo.mesh.vertices
+
+        print "number of surfaces: ",len( self.geo.surface_index )
+        print "number unique surfces: ", len( self.geo.unique_surfaces )
+        for i in xrange(0,5):
+            print "surface %d: "%(i), np.sum( np.where( self.geo.surface_index==i, 1, 0 ) )
 
     def testDet(self):
 
         # Run only one photon at a time
         nphotons = 1
+        #pos = np.tile(self.origin*0.5, (nphotons,1)).astype(np.float32)
         pos = np.tile([0,0,0], (nphotons,1)).astype(np.float32)
-        dir = np.tile([0,0,1], (nphotons,1)).astype(np.float32)
+        dir = np.tile([0,1,0], (nphotons,1)).astype(np.float32)
         pol = np.zeros_like(pos)
         phi = np.random.uniform(0, 2*np.pi, nphotons).astype(np.float32)
         pol[:,0] = np.cos(phi)
@@ -31,6 +45,13 @@ class TestUbooneDetector(unittest.TestCase):
         wavelengths = np.empty(nphotons, np.float32)
         wavelengths.fill(128.0)
 
+        photons = Photons(pos=pos, dir=dir, pol=pol, t=t, wavelengths=wavelengths)
+        hit_charges = []
+        for ev in self.sim.simulate( (photons for i in xrange(5)), keep_photons_end=True, keep_photons_beg=False, ):
+            pass
+            #ev.photons_end.dump()
+            #if ev.channels.hit[0]:
+            #    print "Hits:  with q=",ev.channels.q[0],". Hit=",ev.channels.hit[0]
         pass
 
 if __name__ == "__main__":
