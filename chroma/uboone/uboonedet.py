@@ -35,6 +35,7 @@ class ubooneDet( Detector ):
         # copy member objects (maybe use copy module instead?)
         self.mesh = geom.mesh
         self.colors = geom.colors
+        self.solids = geom.solids
         self.solid_id = geom.solid_id
         self.unique_materials = geom.unique_materials
         self.material1_index = geom.material1_index
@@ -53,6 +54,33 @@ class ubooneDet( Detector ):
             surface_indices.append( surface_index_dict[ surface ] )
         self.surface_index = np.array( surface_indices, dtype=np.int )
         print "number of surface indicies: ",len(self.surface_index)
+
+        # Finally, setup channels
+        print "SEUTP UBOONE CHANNELS from solids list: ",len(self.solids)
+        self.solid_id_to_channel_index.resize( len(self.solids) )
+        self.solid_id_to_channel_index.fill(-1) # default no channels
+        self.solid_id_to_channel_id.resize( len(self.solids) )
+        self.solid_id_to_channel_id.fill(-1)
+
+        print len( self.solid_id_to_channel_index ), len(  self.solid_id_to_channel_id )
+        # prevous calls to add_solid by collada_to_chroma sized this array
+        for n,solid in enumerate(self.solids):
+            if acrylic_detect and  "vol_PMT_AcrylicPlate" in solid.node.lv.id:
+                solid_id = n
+                print "Need to add channel."
+                channel_index = len(self.channel_index_to_solid_id)
+                channel_id = channel_index # later can do more fancy channel indexing/labeling
+                self.solid_id_to_channel_index[solid_id] = channel_index
+                self.solid_id_to_channel_id[solid_id] = channel_id
+
+                # resize channel_index arrays before filling
+                self.channel_index_to_solid_id.resize(channel_index+1)
+                self.channel_index_to_solid_id[channel_index] = solid_id
+                self.channel_index_to_channel_id.resize(channel_index+1)
+                self.channel_index_to_channel_id[channel_index] = channel_id
+                
+                # dictionary does not need resizing
+                self.channel_id_to_channel_index[channel_id] = channel_index
 
         if self.bvh is None:
             self.bvh = load_bvh(self, auto_build_bvh=auto_build_bvh,
