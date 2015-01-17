@@ -26,10 +26,8 @@ class GPUDetector(GPUGeometry):
         GPUGeometry.__init__(self, detector, wavelengths=wavelengths, print_usage=False, cl_context=cl_context, cl_queue=cl_queue)
 
         if api.is_gpu_api_cuda():
-            self.solid_id_to_channel_index_gpu = \
-                ga.to_gpu(detector.solid_id_to_channel_index.astype(np.int32))
-            self.solid_id_to_channel_id_gpu = \
-                ga.to_gpu(detector.solid_id_to_channel_id.astype(np.int32))
+            self.solid_id_to_channel_index_gpu = ga.to_gpu(detector.solid_id_to_channel_index.astype(np.int32))
+            self.solid_id_to_channel_id_gpu = ga.to_gpu(detector.solid_id_to_channel_id.astype(np.int32))
 
             self.nchannels = detector.num_channels()
 
@@ -40,7 +38,7 @@ class GPUDetector(GPUGeometry):
             self.charge_cdf_x_gpu = ga.to_gpu(detector.charge_cdf[0].astype(np.float32))
             self.charge_cdf_y_gpu = ga.to_gpu(detector.charge_cdf[1].astype(np.float32))
 
-            detector_source = get_cu_source('detector.h')
+            detector_source = cutools.get_cu_source('detector.h')
             detector_struct_size = characterize.sizeof('Detector', detector_source)
             self.detector_gpu = make_gpu_struct(detector_struct_size,
                                                 [self.solid_id_to_channel_index_gpu,

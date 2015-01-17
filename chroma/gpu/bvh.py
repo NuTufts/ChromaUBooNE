@@ -208,7 +208,7 @@ def merge_nodes_detailed(nodes, first_child, nchild):
 
 def collapse_chains(nodes, layer_bounds):
     if gpuapi.is_gpu_api_cuda():
-        bvh_module = get_module('bvh.cu', options=cuda_options,include_source_directory=True)
+        bvh_module = get_module('bvh.cu', options=api_options,include_source_directory=True)
     elif gpuapi.is_gpu_api_opencl():
         context = cltools.get_last_context()
         queue = cl.CommandQueue( context )

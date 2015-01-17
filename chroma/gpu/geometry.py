@@ -252,6 +252,8 @@ class GPUGeometry(object):
         self.metadata['f_vertices_gpu'] = vertices_gpu
         
         if api.is_gpu_api_cuda():
+            geometry_source = cutools.get_cu_source('geometry_types.h')
+            geometry_struct_size = characterize.sizeof('Geometry', geometry_source)
             self.gpudata = make_gpu_struct(geometry_struct_size,
                                            [Mapped(self.vertices), 
                                             Mapped(self.triangles),
@@ -417,7 +419,7 @@ class GPUGeometry(object):
                 # need something to copy to the surface array struct
                 # that is the same size as a 64-bit pointer.
                 # this pointer will never be used by the simulation.
-                self.surface_ptrs.append(np.uint64(0))
+                surface_ptrs.append(np.uint64(0))
                 continue
 
             detect = self._interp_material_property(wavelengths, surface.detect)
@@ -460,7 +462,7 @@ class GPUGeometry(object):
 
             surface_ptrs.append(surface_gpu)
 
-        surface_pointer_array = make_gpu_struct(8*len(self.surface_ptrs), self.surface_ptrs)
+        surface_pointer_array = make_gpu_struct(8*len(surface_ptrs), surface_ptrs)
         return surface_data, surface_ptrs, surface_pointer_array
             
     def _package_surface_data_cl( self, context, queue, geometry, wavelengths, wavelength_step ):

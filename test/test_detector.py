@@ -1,6 +1,7 @@
 from unittest_find import unittest
 import numpy as np
-
+import chroma.api as api
+api.use_cuda()
 import chroma.gpu.tools as gputools
 from chroma.geometry import Solid, Geometry, vacuum
 from chroma.loader import create_geometry_from_obj
@@ -24,7 +25,7 @@ class TestDetector(unittest.TestCase):
         self.geo = geo
         self.sim = Simulation(self.geo, geant4_processes=0)
 
-    #@unittest.skip('Ray data file needs to be updated')
+    #@unittest.skip('Skip timing distribution test')
     def testTime(self):
         '''Test PMT time distribution'''
 
@@ -44,7 +45,7 @@ class TestDetector(unittest.TestCase):
                           wavelengths=wavelengths)
 
         hit_times = []
-        for ev in self.sim.simulate( (photons for i in xrange(100)), keep_photons_end=True, keep_photons_beg=True):
+        for ev in self.sim.simulate( (photons for i in xrange(500)), keep_photons_end=True, keep_photons_beg=True):
         #for ev in self.sim.simulate(photons for i in xrange(5)):
             if ev.channels.hit[0]:
                 hit_times.append(ev.channels.t[0])

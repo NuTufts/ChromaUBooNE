@@ -4,6 +4,7 @@ log = logging.getLogger(__name__)
 import numpy as np
 import chroma.api as gpuapi
 if gpuapi.is_gpu_api_cuda():
+    import pycuda.driver as cuda
     import pycuda.tools
     import pycuda.gpuarray as ga
     import chroma.gpu.cutools as cutools
@@ -169,7 +170,7 @@ def make_gpu_struct(size, members):
     struct = cuda.mem_alloc(size)
 
     i = 0
-    for member in members:
+    for n,member in enumerate(members):
         if isinstance(member, ga.GPUArray):
             member = member.gpudata
 
@@ -185,7 +186,7 @@ def make_gpu_struct(size, members):
             cuda.memcpy_htod(int(struct)+i, np.getbuffer(member))
             i += member.nbytes
         else:
-            raise TypeError('expected a GPU device pointer or scalar type.')
+            raise TypeError('expected a GPU device pointer or scalar type. Instead got %s for member #%d'%(type(member),n))
 
     return struct
 

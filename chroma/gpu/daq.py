@@ -76,16 +76,19 @@ class GPUDaq(object):
         if api.is_gpu_api_cuda():
             self.gpu_funcs.reset_earliest_time_int(np.float32(1e9), np.int32(len(self.earliest_time_int_gpu)), 
                                                    self.earliest_time_int_gpu, block=(nthreads_per_block,1,1), grid=(len(self.earliest_time_int_gpu)//nthreads_per_block+1,1))
+            self.channel_q_int_gpu.fill(0)
+            self.channel_q_gpu.fill(0)
+            self.channel_history_gpu.fill(0)
         elif api.is_gpu_api_opencl():
             comqueue = cl.CommandQueue(cl_context)
             self.gpu_funcs.reset_earliest_time_int( comqueue, (nthreads_per_block,1,1), (len(self.earliest_time_int_gpu)//nthreads_per_block+1,1),
                                                     np.float32(1e9), 
                                                     np.int32(len(self.earliest_time_int_gpu)),
                                                     self.earliest_time_int_gpu.data, g_times_l=True ).wait()
-        self.channel_q_int_gpu.fill(0,queue=comqueue)
-        self.channel_q_gpu.fill(0,queue=comqueue)
-        self.channel_history_gpu.fill(0,queue=comqueue)
-        cl.enqueue_barrier(comqueue)
+            self.channel_q_int_gpu.fill(0,queue=comqueue)
+            self.channel_q_gpu.fill(0,queue=comqueue)
+            self.channel_history_gpu.fill(0,queue=comqueue)
+            cl.enqueue_barrier(comqueue)
         
 
     def acquire(self, gpuphotons, rng_states, nthreads_per_block=64, max_blocks=1024, start_photon=None, nphotons=None, weight=1.0, cl_context=None):
