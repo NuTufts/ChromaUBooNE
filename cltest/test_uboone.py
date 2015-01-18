@@ -16,7 +16,9 @@ except:
 class TestUbooneDetector(unittest.TestCase):
     def setUp(self):
         #self.geo = ubooneDet( "../gdml/microboone_nowires_chroma_simplified.dae",  acrylic_detect=False, acrylic_wls=True )
-        self.geo = ubooneDet( "../gdml/microboone_nowires_chroma_simplified.dae",  acrylic_detect=True, acrylic_wls=False,  read_bvh_cache=False )
+        self.geo = ubooneDet( "../gdml/microboone_nowires_chroma_simplified.dae",  
+                              acrylic_detect=True, acrylic_wls=False,  
+                              read_bvh_cache=True, cache_dir="./uboone_bvh_nowires")
         self.sim = Simulation(self.geo, geant4_processes=0)
         self.origin = self.geo.bvh.world_coords.world_origin
 
