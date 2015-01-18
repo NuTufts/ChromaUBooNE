@@ -1,5 +1,5 @@
 import os,sys
-os.environ['PYOPENCL_CTX']='1'
+#os.environ['PYOPENCL_CTX']='1'
 from unittest_find import unittest
 import numpy as np
 
@@ -35,7 +35,7 @@ class TestDetector(unittest.TestCase):
         self.htime = rt.TH1D("htime","Time;ns",120, 80, 120 )
         self.hcharge = rt.TH1D("hcharge","Charge;pe",100, 0.5, 1.5 )
 
-    @unittest.skip('Skipping time test')
+    #@unittest.skip('Skipping time test')
     def testTime(self):
         '''Test PMT time distribution'''
 
@@ -59,7 +59,7 @@ class TestDetector(unittest.TestCase):
             for n,hit in enumerate(ev.channels.hit):
                 if hit:
                     hit_times.append(ev.channels.t[n])
-                    print "Hits from photon %d: "%(n),ev.photons_end.pos[n]," with t=",ev.channels.t[n]," q=",ev.channels.q[n],". starting from ",ev.photons_beg.pos[n], " Hit=",ev.channels.hit[n]
+                    print "Hits from photon %d: "%(n),ev.photons_end[0].pos[n]," with t=",ev.channels.t[n]," q=",ev.channels.q[n]," Hit=",ev.channels.hit[n]
                     self.htime.Fill( ev.channels.t[n] )
                     self.hcharge.Fill( ev.channels.q[n] )
         hit_times = np.array(hit_times)
@@ -87,13 +87,13 @@ class TestDetector(unittest.TestCase):
         photons = Photons(pos=pos, dir=dir, pol=pol, t=t, wavelengths=wavelengths)
 
         hit_charges = []
-        for ev in self.sim.simulate( (photons for i in xrange(1)), keep_photons_end=True, keep_photons_beg=False):
+        for ev in self.sim.simulate( (photons for i in xrange(100)), keep_photons_end=True, keep_photons_beg=False):
             if ev.channels.hit[0]:
                 hit_charges.append(ev.channels.q[0])
                 self.hcharge.Fill( ev.channels.q[0] )
                 self.htime.Fill( ev.channels.t[0] )
                 print "Hits:  with q=",ev.channels.q[0],". Hit=",ev.channels.hit[0]
-            #ev.photons_end.dump()
+            ev.photons_end.dump_history()
         hit_charges = np.array(hit_charges)
         
         self.assertAlmostEqual(hit_charges.mean(),  1.0, delta=1e-1)

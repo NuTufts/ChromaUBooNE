@@ -35,7 +35,6 @@ __kernel void make_geostruct(//Geometry
     
   }
   barrier( CLK_LOCAL_MEM_FENCE );
-  printf("nwavelengths: %d\n",nwavelengths);
   dump_geostruct_info( &g, id );
 };
 

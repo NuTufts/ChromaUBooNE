@@ -177,7 +177,7 @@ class GPUPhotons(object):
                                               self.pos.data, self.dir.data, self.wavelengths.data, self.pol.data, self.t.data, 
                                               self.flags.data, self.last_hit_triangles.data, self.weights.data,
                                               np.int32(nsteps), np.int32(iuse_weights), np.int32(scatter_first),
-                                              gpu_geometry.world_scale, gpu_geometry.world_origin, np.int32(len(gpu_geometry.nodes)),
+                                              gpu_geometry.world_scale, gpu_geometry.world_origin_gpu.data,  np.int32(len(gpu_geometry.nodes)),
                                               gpu_geometry.material_data['n'], gpu_geometry.material_data['step'], gpu_geometry.material_data["wavelength0"],
                                               gpu_geometry.vertices.data, gpu_geometry.triangles.data,
                                               gpu_geometry.material_codes.data, gpu_geometry.colors.data,

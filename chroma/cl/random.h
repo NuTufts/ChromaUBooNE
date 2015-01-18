@@ -33,7 +33,8 @@ float clrand_uniform(__global clrandState *s, float low, float high)
   unsigned int ix = u.i.x; // converts the generated unsigned int into a float
   unsigned int max = 0xffffffff;
   float factor = 1.0f/(float)max;
-  float x = float(ix)*factor; // [0,1)
+  float x = (float)ix;
+  x *= factor; // [0,1)
   return low + x*(high-low);
 };
 
@@ -43,7 +44,7 @@ float3 uniform_sphere(__global clrandState *s)
   float cos_th = clrand_uniform(s, -1.0f, 1.0f);
   float sin_th = sqrt(1.0f-cos_th*cos_th);
 
-  return make_float3(sin_th*cos(phi), sin_th*sin(phi), cos_th); 
+  return (float3) (sin_th*cos(phi), sin_th*sin(phi), cos_th); 
 } 
 
 float clrand_normal( __global clrandState* s ) {

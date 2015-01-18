@@ -189,7 +189,9 @@ int intersect_mesh(const float3 *origin, const float3* direction, __local Geomet
 	maxcurr = max( maxcurr, curr );
 
 	if (curr >= STACK_SIZE) {
+#if __OPENCL_VERSION__>=120
 	  printf("warning: intersect_mesh() aborted; node > tail\n");
+#endif
 	  break;
 	}
       }    // loop over children, starting with first_child

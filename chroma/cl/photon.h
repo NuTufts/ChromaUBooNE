@@ -118,7 +118,8 @@ void sdump( State* s );
 
 void pdump( const Photon* p, int photon_id, int status, int steps, int command, int slot )
 {
-  // printf only supported for computer capability > 2.0
+  // printf only supported for opencl >= 1.2
+#if __OPENCL_VERSION__>=120
     printf("STATUS: ");
     switch(status)
     {
@@ -173,6 +174,7 @@ void pdump( const Photon* p, int photon_id, int status, int steps, int command, 
     if (p->history & U_NAN_ABORT )      printf("NAN_ABORT ");
 
     printf("\n");
+#endif
 }
 
 
@@ -209,6 +211,7 @@ void pdump( const Photon* p, int photon_id, int status, int steps, int command, 
 /* } */
 
 void sdump( State* s ) {
+#if __OPENCL_VERSION__>=120
   printf("-------------------\n");
   printf("State Information\n");
   if (s->inside_to_outside)
@@ -227,7 +230,7 @@ void sdump( State* s ) {
   printf("  distance to bounary: %.2f\n", s->distance_to_boundary );
   printf("  wavelength info: %d %.2f %.2f\n", s->n, s->step, s->wavelength0 );
   printf("-------------------\n");
-
+#endif
 }
 
 int convert(int c)
@@ -339,7 +342,8 @@ float3 pick_new_direction(float3 axis, float theta, float phi)
 	sin_theta*(cos_phi*axis.z*sin_axis_phi - sin_phi*cos_axis_phi);
     float dirz = cos_theta*axis.z - sin_theta*cos_phi*sin_axis_theta;
 
-    return make_float3(dirx, diry, dirz);
+    //return make_float3(dirx, diry, dirz);
+    return (float3) (dirx, diry, dirz);
 }
 
 void rayleigh_scatter(Photon *p, __global clrandState *rng)
@@ -557,11 +561,13 @@ int propagate_at_specular_reflector(Photon *p, State *s)
 #ifdef VBO_DEBUG
     if( p->id == VBO_DEBUG_PHOTON_ID )
     {
+#if __OPENCL_VERSION__>=120
         printf("id %d incident_angle          %f \n"      , p->id, incident_angle );
         printf("id %d s.surface_normal        %f %f %f \n", p->id, s->surface_normal.x, s->surface_normal.y, s->surface_normal.z ); 
         printf("id %d p.direction             %f %f %f \n", p->id, p->direction.x, p->direction.y, p->direction.z ); 
         printf("id %d incident_plane_normal   %f %f %f \n", p->id, incident_plane_normal.x, incident_plane_normal.y, incident_plane_normal.z ); 
         printf("id %d n_incident_plane_..) %f \n", p->id, n_incident_plane_normal ); 
+#endif
     }
 #endif
 

@@ -64,9 +64,9 @@ Matrix neg(const Matrix *m)
 
 float3 multiplyvec(const Matrix *m, const float3 *a)
 {
-  return make_float3(m->a00*a->x + m->a01*a->y + m->a02*a->z,
-		     m->a10*a->x + m->a11*a->y + m->a12*a->z,
-		     m->a20*a->x + m->a21*a->y + m->a22*a->z);
+  return (float3) (m->a00*a->x + m->a01*a->y + m->a02*a->z,
+		   m->a10*a->x + m->a11*a->y + m->a12*a->z,
+		   m->a20*a->x + m->a21*a->y + m->a22*a->z);
 }
 
 Matrix add_elems(const Matrix *m, const Matrix *n)

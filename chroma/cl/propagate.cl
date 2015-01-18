@@ -44,6 +44,7 @@ __kernel void photon_duplicate(int first_photon, int nthreads,
   }
 }
 
+
 __kernel void count_photons(int first_photon, int nthreads, unsigned int target_flag,
 			    __global unsigned int *index_counter,
 			    __global unsigned int *histories)
@@ -101,7 +102,6 @@ __kernel void copy_photons(int first_photon, int nthreads, unsigned int target_f
     new_weights[offset] = weights[photon_id];
   }
 }
-
 	      
 __kernel void propagate( int first_photon, int nthreads, 
 			 __global unsigned int *input_queue,
@@ -111,7 +111,7 @@ __kernel void propagate( int first_photon, int nthreads,
 			 __global float *times, __global unsigned int *histories,
 			 __global int *last_hit_triangles, __global float *weights,
 			 int max_steps, int iuse_weights, int scatter_first,
-			 float world_scale, float3 world_origin, int nprimary_nodes,
+			 float world_scale, __global float3* world_origin, int nprimary_nodes,
 			 unsigned int n, float wavelength_step, float wavelength0,
 			 //Geometry
 			 __global float3* vertices, __global uint3* triangles,
@@ -136,7 +136,7 @@ __kernel void propagate( int first_photon, int nthreads,
     fill_geostruct(  &sg, vertices, triangles, material_codes, colors, primary_nodes, extra_nodes,
 		     nmaterials, refractive_index, absorption_length, scattering_length, reemission_prob, reemission_cdf,
 		     nsurfaces, detect, absorb, reemit, reflect_diffuse, reflect_specular, eta, k, surf_reemission_cdf, model, transmissive, thickness,
-		     world_origin, world_scale, nprimary_nodes,
+		     *world_origin, world_scale, nprimary_nodes,
 		     n, wavelength_step, wavelength0 );
   }
   
