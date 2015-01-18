@@ -34,16 +34,36 @@ materialnames = ["LAr",                       # liquid argon [ may have its own 
 # [USED] Seidel et al. NIMA 489 (2002) 189–194: 90 cm (calculated)
 # * Absorption Length
 # Going to be a function of puity and other inputs. 
-# Taking the easy route and using 80.9 cm for now (from C. Rubbia)
-
-lar_refractive_index = np.array( [ (260.0, 1.2316),
-                                   (400.0, 1,2316),
-                                   (546.1, 1.2316) ] )
+# 80.9 cm from (from C. Rubbia)
+# 2000.0 cm from LArSoft
+# refractive from LArSoft
+#lar_refractive_index = np.array( [ (260.0, 1.2316),
+#                                   (400.0, 1,2316),
+#                                   (546.1, 1.2316) ] )
+# below in mm
+lar_refractive_index = np.array( [ (114.1, 1.60),
+                                   (117.4, 1.56),
+                                   (122.5, 1.45),
+                                   (125.2, 1.39),
+                                   (135.3, 1.35),
+                                   (160.2, 1.29),
+                                   (200.3, 1.26),
+                                   (278.7, 1.24),
+                                   (401.3, 1.23),
+                                   (681.3, 1.23) ] )
+lar_scattering_length = np.array( [ (117.3, 100.0),
+                                    (124.6, 380.0),
+                                    (128.2, 900.0),
+                                    (145.9, 1920.0),
+                                    (164.7, 4100.0),
+                                    (190.5, 9300.0),
+                                    (217.9, 18500.0),
+                                    (250.5, 37900.0) ] )
 
 def load_lar_material_info( matclass ):
     matclass.set( 'refractive_index', lar_refractive_index[:,1], lar_refractive_index[:,0] )
-    matclass.set( 'scattering_length', 90.0 )
-    matclass.set( 'absorption_length', 80.9 )
+    matclass.set( 'scattering_length', lar_scattering_length[:,1], lar_scattering_length[:,0] )
+    matclass.set( 'absorption_length', 20000.0 ) # mm
 
 # --------------------------------------------------------------------------------
 # Acrylic

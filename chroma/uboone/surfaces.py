@@ -12,12 +12,13 @@ import chroma.uboone.load_ub_spectral_data as datatools
 # Steel-LAr surface (cryostat)
 # We use simple mixtures of diffuse and specular reflection.
 # Hard to know what it should be for 128 nm light
+# Using values from larproperties.fcl
 def make_steel_surface():
     steel_surface = Surface("steel_surface")
-    steel_surface.set('reflect_diffuse', 0.5)
-    steel_surface.set('reflect_specular',0.5)
+    steel_surface.set('reflect_diffuse', 0.125)
+    steel_surface.set('reflect_specular',0.125)
     steel_surface.set('detect',0.0)
-    steel_surface.set('absorb',0.0)
+    steel_surface.set('absorb',0.75)
     steel_surface.set('reemit',0.0)
     steel_surface.transmissive = 0
     # eta and kappa not set
