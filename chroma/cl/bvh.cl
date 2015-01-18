@@ -27,12 +27,14 @@ unsigned long ullmin( unsigned long a, unsigned long b );
 // // Vector utility functions
 float3 vminf(const float3 *a, const float3 *b)
 {
-  return make_float3(fmin((*a).x, (*b).x), fmin((*a).y, (*b).y), fmin((*a).z, (*b).z));
+  //return make_float3(fmin((*a).x, (*b).x), fmin((*a).y, (*b).y), fmin((*a).z, (*b).z));
+  return (float3)( fmin((*a).x, (*b).x), fmin((*a).y, (*b).y), fmin((*a).z, (*b).z) );
 }
 
 float3 vmaxf(const float3 *a, const float3 *b)
 {
-   return make_float3(fmax((*a).x, (*b).x), fmax((*a).y, (*b).y), fmax((*a).z, (*b).z));
+  //return make_float3(fmax((*a).x, (*b).x), fmax((*a).y, (*b).y), fmax((*a).z, (*b).z));
+  return (float3)( fmax((*a).x, (*b).x), fmax((*a).y, (*b).y), fmax((*a).z, (*b).z) );
 }
 
 // uint3 min(const uint3 &a, const uint3 &b)
@@ -90,9 +92,9 @@ unsigned int quantize(float v, float world_origin, float world_scale)
 
 uint3 quantize3(float3 v, float3 world_origin, float world_scale)
 {
-  return make_uint3(quantize(v.x, world_origin.x, world_scale),
-		    quantize(v.y, world_origin.y, world_scale),
-		    quantize(v.z, world_origin.z, world_scale));
+  return (uint3) (quantize(v.x, world_origin.x, world_scale),
+		  quantize(v.y, world_origin.y, world_scale),
+		  quantize(v.z, world_origin.z, world_scale));
 }
 
 uint3 quantize3_cyl(float3 v, float3 world_origin, float world_scale)
@@ -104,7 +106,7 @@ uint3 quantize3_cyl(float3 v, float3 world_origin, float world_scale)
   unsigned int rho = (unsigned int) length(rescaled_v); // using opencl native
   unsigned int phi = (unsigned int) ((atan2(v.y, v.x)/PI/2.0f + 1.0f) * 65535.0f);
 
-  return make_uint3(rho, phi, z);
+  return (uint3) (rho, phi, z);
 }
 
 uint3 quantize3_sph(float3 v, float3 world_origin, float world_scale)
@@ -119,22 +121,22 @@ uint3 quantize3_sph(float3 v, float3 world_origin, float world_scale)
   //unsigned int theta = (unsigned int) (acosf(rescaled_v.z / norm(rescaled_v)) / PI * 65535.0f);
   unsigned int theta = (unsigned int) (acos(rescaled_v.z / length(rescaled_v)) / PI * 65535.0f); // switching to opencl native
  
-  return make_uint3(r, theta, phi);
+  return (uint3) (r, theta, phi);
 }
 
 uint4 node_union(const uint4 *a, const uint4 *b)
 {
-  uint3 lower = make_uint3(min((*a).x & 0xFFFF, (*b).x & 0xFFFF),
+  uint3 lower = (uint3) (min((*a).x & 0xFFFF, (*b).x & 0xFFFF),
                            min((*a).y & 0xFFFF, (*b).y & 0xFFFF),
                            min((*a).z & 0xFFFF, (*b).z & 0xFFFF));
-  uint3 upper = make_uint3(max((*a).x >> 16, (*b).x >> 16),
+  uint3 upper = (uint3) (max((*a).x >> 16, (*b).x >> 16),
                            max((*a).y >> 16, (*b).y >> 16),
                            max((*a).z >> 16, (*b).z >> 16));
 
-  return make_uint4(upper.x << 16 | lower.x,
-                    upper.y << 16 | lower.y,
-                    upper.z << 16 | lower.z,
-                    0);
+  return (uint4) (upper.x << 16 | lower.x,
+		  upper.y << 16 | lower.y,
+		  upper.z << 16 | lower.z,
+		  0);
 }      
 
 
@@ -268,8 +270,8 @@ build_layer(unsigned int first_node,
   
   // Load first child
   uint4 parent_node = nodes[first_child];
-  uint3 lower = make_uint3(parent_node.x & 0xFFFF, parent_node.y & 0xFFFF, parent_node.z & 0xFFFF);
-  uint3 upper = make_uint3(parent_node.x >> 16, parent_node.y >> 16, parent_node.z >> 16);
+  uint3 lower = (uint3) (parent_node.x & 0xFFFF, parent_node.y & 0xFFFF, parent_node.z & 0xFFFF);
+  uint3 upper = (uint3) (parent_node.x >> 16, parent_node.y >> 16, parent_node.z >> 16);
   
   
   // Scan remaining children
@@ -282,8 +284,8 @@ build_layer(unsigned int first_node,
     
     real_children++;
     
-    uint3 child_lower = make_uint3(child_node.x & 0xFFFF, child_node.y & 0xFFFF, child_node.z & 0xFFFF);
-    uint3 child_upper = make_uint3(child_node.x >> 16, child_node.y >> 16, child_node.z >> 16);
+    uint3 child_lower = (uint3) (child_node.x & 0xFFFF, child_node.y & 0xFFFF, child_node.z & 0xFFFF);
+    uint3 child_upper = (uint3) (child_node.x >> 16, child_node.y >> 16, child_node.z >> 16);
     
     lower = min(lower, child_lower);
     upper = max(upper, child_upper);
@@ -315,15 +317,15 @@ make_parents_detailed(unsigned int first_node,
   
   // Load first child
   uint4 parent_node = child_nodes[first_child];
-  uint3 lower = make_uint3(parent_node.x & 0xFFFF, parent_node.y & 0xFFFF, parent_node.z & 0xFFFF);
-  uint3 upper = make_uint3(parent_node.x >> 16, parent_node.y >> 16, parent_node.z >> 16);
+  uint3 lower = (uint3) (parent_node.x & 0xFFFF, parent_node.y & 0xFFFF, parent_node.z & 0xFFFF);
+  uint3 upper = (uint3) (parent_node.x >> 16, parent_node.y >> 16, parent_node.z >> 16);
   
   // Scan remaining children
   for (unsigned int i=1; i < nchild; i++) {
     uint4 child_node = child_nodes[first_child + i];
     
-    uint3 child_lower = make_uint3(child_node.x & 0xFFFF, child_node.y & 0xFFFF, child_node.z & 0xFFFF);
-    uint3 child_upper = make_uint3(child_node.x >> 16, child_node.y >> 16, child_node.z >> 16);
+    uint3 child_lower = (uint3) (child_node.x & 0xFFFF, child_node.y & 0xFFFF, child_node.z & 0xFFFF);
+    uint3 child_upper = (uint3) (child_node.x >> 16, child_node.y >> 16, child_node.z >> 16);
     
     lower = min(lower, child_lower);
     upper = max(upper, child_upper);
@@ -359,8 +361,8 @@ make_parents(unsigned int first_node,
   
   // Load first child
   uint4 parent_node = child_nodes[first_child];
-  uint3 lower = make_uint3(parent_node.x & 0xFFFF, parent_node.y & 0xFFFF, parent_node.z & 0xFFFF);
-  uint3 upper = make_uint3(parent_node.x >> 16, parent_node.y >> 16, parent_node.z >> 16);
+  uint3 lower = (uint3) (parent_node.x & 0xFFFF, parent_node.y & 0xFFFF, parent_node.z & 0xFFFF);
+  uint3 upper = (uint3) (parent_node.x >> 16, parent_node.y >> 16, parent_node.z >> 16);
   
   // Scan remaining children
   unsigned int real_children = 1;
@@ -375,8 +377,8 @@ make_parents(unsigned int first_node,
     
     real_children++;
     
-    uint3 child_lower = make_uint3(child_node.x & 0xFFFF, child_node.y & 0xFFFF, child_node.z & 0xFFFF);
-    uint3 child_upper = make_uint3(child_node.x >> 16, child_node.y >> 16, child_node.z >> 16);
+    uint3 child_lower = (uint3) (child_node.x & 0xFFFF, child_node.y & 0xFFFF, child_node.z & 0xFFFF);
+    uint3 child_upper = (uint3) (child_node.x >> 16, child_node.y >> 16, child_node.z >> 16);
     
     lower = min(lower, child_lower);
     upper = max(upper, child_upper);
@@ -587,8 +589,6 @@ __kernel void area_sort_child(unsigned int start, unsigned int end,
   unsigned int thread_id = get_local_size(0)*get_group_id(0) + get_local_id(0); // unsigned int thread_id = blockDim.x * blockIdx.x + threadIdx.x;
   unsigned int stride = get_num_groups(0)*get_local_size(0);//gridDim.x * blockDim.x;
   
-  
-  const int MAX_CHILD = 1 << (32 - CHILD_BITS);
   float distance[MAX_CHILD];
   uint4 children[MAX_CHILD];
   

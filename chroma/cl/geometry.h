@@ -36,7 +36,8 @@ void dump_geostruct_info( __local Geometry* g, int threadid );
 // Definitions
 float3 to_float3(const uint3 *a)
 { 
-  return make_float3((*a).x, (*a).y, (*a).z);
+  //return make_float3((*a).x, (*a).y, (*a).z);
+  return (float3) ( (*a).x, (*a).y, (*a).z );
 }
 
 uint4 get_packed_node(__local Geometry *geometry, const unsigned int i)
@@ -61,9 +62,10 @@ Node get_node(__local Geometry *geometry, const unsigned int i)
 
      Node node_struct;
 
-     uint3 lower_int = make_uint3(node.x & 0xFFFF, node.y & 0xFFFF, node.z & 0xFFFF);
-     uint3 upper_int = make_uint3(node.x >> 16, node.y >> 16, node.z >> 16);
-
+     //uint3 lower_int = make_uint3(node.x & 0xFFFF, node.y & 0xFFFF, node.z & 0xFFFF);
+     //uint3 upper_int = make_uint3(node.x >> 16, node.y >> 16, node.z >> 16);
+     uint3 lower_int = (uint3)(node.x & 0xFFFF, node.y & 0xFFFF, node.z & 0xFFFF);
+     uint3 upper_int = (uint3)(node.x >> 16, node.y >> 16, node.z >> 16);
 
      node_struct.lower = geometry->world_origin + to_float3(&lower_int) * geometry->world_scale;
      node_struct.upper = geometry->world_origin + to_float3(&upper_int) * geometry->world_scale;
@@ -214,6 +216,7 @@ void fill_surface_struct( unsigned int surface_index, Surface* s, __local Geomet
 }
 
 void dump_geostruct_info( __local Geometry* g, int threadid ) {
+#if __OPENCL_VERSION__>=120
   printf("========================================================================\n");
   printf("DUMPING GEOMETRY INFO IN STRUCT\n");
   printf("-- World info --\n");
@@ -312,6 +315,8 @@ void dump_geostruct_info( __local Geometry* g, int threadid ) {
   }
 
   printf("========================================================================\n");
+#endif
+
 };
 
 #endif

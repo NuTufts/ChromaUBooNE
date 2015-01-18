@@ -54,6 +54,8 @@ typedef struct Triangle
 enum { INTERNAL_NODE, LEAF_NODE, PADDING_NODE };
 __constant const unsigned int CHILD_BITS = 28;
 __constant const unsigned int NCHILD_MASK = (0xFFFFu << CHILD_BITS);
+//__constant const unsigned int MAX_CHILD = 1 << (32 - CHILD_BITS);
+#define MAX_CHILD 16
 
 unsigned int AvoidWarningThatCausesGDBGrief()
 {

@@ -1,5 +1,5 @@
 import os
-os.environ["PYOPENCL_CTX"] ='1'
+#os.environ["PYOPENCL_CTX"] ='1'
 from unittest_find import unittest
 import chroma.gpu.tools as tools
 import pyopencl as cl

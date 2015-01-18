@@ -97,6 +97,7 @@ pdump( Photon& p, int photon_id, int status, int steps, int command, int slot )
 {
 #if __CUDA_ARCH__ >= 200
   // printf only supported for computer capability > 2.0
+    printf("STATUS: ");
     switch(status)
     {
        case STATUS_NONE                   : printf("NONE             ")  ; break ;
@@ -111,10 +112,11 @@ pdump( Photon& p, int photon_id, int status, int steps, int command, int slot )
        case STATUS_BREAKOUT               : printf("BREAKOUT         ")  ; break ;
        case STATUS_ENQUEUE                : printf("ENQUEUE          ")  ; break ;
        case STATUS_DONE                   : printf("DONE             ")  ; break ;
-       case STATUS_AT_SURFACE_UNEXPECTED  : printf("AT_SURFACE_UNEXPECTED") ; break ;
-       default                            : printf("STATUS_UNKNOWN_ENUM_VALUE") ; break ;
+       case STATUS_AT_SURFACE_UNEXPECTED  : printf("AT_SURFACE_UNEXPECTED ") ; break ;
+       default                            : printf("STATUS_UNKNOWN_ENUM_VALUE (%d) ",status) ; break ;
     } 
 
+    printf("COM: ");
     switch(command)
     {
        case  CONTINUE : printf("CONTINUE ") ; break ;

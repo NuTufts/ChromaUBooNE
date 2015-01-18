@@ -1,15 +1,13 @@
-// No templates for OpenCL which uses C99.
-// This will become a hot mess.
-// Though, if this is pointer manipulation we can go with char* ...
+// OpenCL Limited C99 causing these functions to become a hot mess.
 
-
-void swap( void* a, void* b, size_t size );
-void reverse(int n, void* array, size_t elemsize );
+//void swap( void* a, void* b, size_t size );
+//void reverse(int n, void* array, size_t elemsize );
 void piksrt( int n, __local float* arrf );
 void piksrt_device( int n, float* arrf );
 void piksrt2( int n, float* arrf, uint4* arrvec );
 unsigned long searchsorted(unsigned long n, float *arr, const float*x);
-void insert(unsigned long n, void *arr, unsigned long i, const void *x, size_t elemsize);
+//void insert(unsigned long n, void *arr, unsigned long i, const void *x, size_t elemsize);
+void insert_float(unsigned long n, float *arr, unsigned long i, const float *x);
 void add_sorted(unsigned long n, float *arr, const float *x);
 
 /* template <class T> */
@@ -20,12 +18,12 @@ void add_sorted(unsigned long n, float *arr, const float *x);
 /*     a = b; */
 /*     b = tmp; */
 /* } */
-void swap( void* a, void* b, size_t size ) {
-  char temp[size]; // allocates temp memory for element value
-  memcpy(temp,b,size); // below copying referenced value, not the pointer!
-  memcpy(b,a,size);   
-  memcpy(a,temp,size);
-}
+/* void swap( void* a, void* b, size_t size ) { */
+/*   char temp[size]; // allocates temp memory for element value */
+/*   memcpy(temp,b,size); // below copying referenced value, not the pointer! */
+/*   memcpy(b,a,size);    */
+/*   memcpy(a,temp,size); */
+/* } */
 
 
 /* template <class T> */
@@ -35,13 +33,13 @@ void swap( void* a, void* b, size_t size ) {
 /*     for (int i=0; i < n/2; i++) */
 /* 	swap(a[i],a[n-1-i]); */
 /* } */
-void reverse(int n, void* array, size_t elemsize ) {
-  for (int i=0; i<n/2; i++) {
-    char* pelem1 = array + i;         // pointer to element 1 of array
-    char* pelem2 = array + n - 1 -i;  // pointer to element 2 of array
-    swap( pelem1, pelem2, elemsize ); // pass pointers to elements and size of object
-  }
-}
+/* void reverse(int n, void* array, size_t elemsize ) { */
+/*   for (int i=0; i<n/2; i++) { */
+/*     char* pelem1 = array + i;         // pointer to element 1 of array */
+/*     char* pelem2 = array + n - 1 -i;  // pointer to element 2 of array */
+/*     swap( pelem1, pelem2, elemsize ); // pass pointers to elements and size of object */
+/*   } */
+/* } */
 
 /* template <class T> */
 /* __device__ void */
@@ -203,13 +201,24 @@ unsigned long searchsorted(unsigned long n, float *arr, const float *x) {
 /* 	arr[j] = arr[j-1]; */
 /*     arr[i] = x; */
 /* } */
-void insert(unsigned long n, void *arr, unsigned long i, const void *x, size_t elemsize)
+/* void insert(unsigned long n, void *arr, unsigned long i, const void *x, size_t elemsize) */
+/* { */
+/*   unsigned long j; */
+/*   for (j=n-1; j > i; j--) { */
+/*     memcpy( arr+j, arr+j-1, elemsize ); */
+/*   } */
+/*   memcpy( arr+i, x, elemsize ); */
+/* } */
+
+void insert_float(unsigned long n, float *arr, unsigned long i, const float *x)
 {
   unsigned long j;
   for (j=n-1; j > i; j--) {
-    memcpy( arr+j, arr+j-1, elemsize );
+    //memcpy( arr+j, arr+j-1, sizeof(float) );
+    *(arr+j) =  *(arr+j-1);
   }
-  memcpy( arr+i, x, elemsize );
+  //memcpy( arr+i, x, sizeof(float) );
+  *(arr+j) = *x;
 }
 
 /* template <class T> */
@@ -226,5 +235,5 @@ void add_sorted(unsigned long n, float *arr, const float *x)
   unsigned long i = searchsorted(n, arr, x);
 
   if (i < n)
-    insert(n, arr, i, x, sizeof(float));
+    insert_float(n, arr, i, x );
 }
