@@ -208,8 +208,8 @@ class GPUPhotons(object):
                 elif api.is_gpu_api_opencl():
                     temp_out = output_queue_gpu.get()
                     nphotons = temp_out[0]
-                    input_queue_gpu.set( comqueue, temp_out[1:] ) # set the input queue to have index of photons still need to be run
-                    output_queue_gpu[:1].set( comqueue, np.ones(shape=1,dtype=np.uint32) ) # reset first instance to be one
+                    input_queue_gpu.set( temp_out[1:], queue=comqueue ) # set the input queue to have index of photons still need to be run
+                    output_queue_gpu[:1].set( np.ones(shape=1,dtype=np.uint32), queue=comqueue ) # reset first instance to be one
 
         if ga.max(self.flags).get() & (1 << 31):
             print >>sys.stderr, "WARNING: ABORTED PHOTONS"

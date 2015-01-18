@@ -71,6 +71,5 @@ class TestUbooneDetector(unittest.TestCase):
             print ev.channels.t
 
 if __name__ == "__main__":
-
     unittest.main()
-    
+    pass

@@ -134,7 +134,7 @@ def create_leaf_nodes(mesh, morton_bits=16, round_to_multiple=1):
                                    np.uint32(elements_this_iter),
                                    triangles_dev.data, vertices_dev.data,
                                    world_origin, world_scale,
-                                   nodes.data, morton_codes.data )
+                                   nodes.data, morton_codes.data, g_times_l=True ).wait()
 
         morton_codes_host = morton_codes.get() >> (16 - morton_bits)
 

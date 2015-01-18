@@ -1,8 +1,9 @@
 import os,sys
-os.environ['PYOPENCL_CTX']='1'
+#os.environ['PYOPENCL_CTX']='1'
 from unittest_find import unittest
 import numpy as np
 import chroma.api as api
+api.use_opencl()
 from chroma.sim import Simulation
 from chroma.event import Photons
 from chroma.uboone.uboonedet import ubooneDet
@@ -30,13 +31,13 @@ class TestUbooneDetector(unittest.TestCase):
         for i in xrange(0,5):
             print "surface %d: "%(i), np.sum( np.where( self.geo.surface_index==i, 1, 0 ) )
 
+    @unittest.skip('skipping testDet')
     def testDet(self):
 
         # Run only one photon at a time
-        nphotons = 1
-        #pos = np.tile(self.origin*0.5, (nphotons,1)).astype(np.float32)
+        nphotons = 1000000
         pos = np.tile([0,0,0], (nphotons,1)).astype(np.float32)
-        dir = np.tile([0,1,0], (nphotons,1)).astype(np.float32)
+        dir = np.tile([0,0,1], (nphotons,1)).astype(np.float32)
         pol = np.zeros_like(pos)
         phi = np.random.uniform(0, 2*np.pi, nphotons).astype(np.float32)
         pol[:,0] = np.cos(phi)
@@ -47,14 +48,41 @@ class TestUbooneDetector(unittest.TestCase):
 
         photons = Photons(pos=pos, dir=dir, pol=pol, t=t, wavelengths=wavelengths)
         hit_charges = []
-        for ev in self.sim.simulate( (photons for i in xrange(5)), keep_photons_end=True, keep_photons_beg=False, ):
-            pass
-            #ev.photons_end.dump()
-            #if ev.channels.hit[0]:
-            #    print "Hits:  with q=",ev.channels.q[0],". Hit=",ev.channels.hit[0]
-        pass
+        for ev in self.sim.simulate( (photons for i in xrange(1)), keep_photons_end=True, keep_photons_beg=False, ):
+            ev.photons_end.dump_history()
+            lht = ev.photons_end[0].last_hit_triangles
+            print "LHT: ",lht
+
+    def testPhotonBomb(self):
+
+        # Run only one photon at a time
+        nphotons = 1000000
+
+        dphi = np.random.uniform(0,2.0*np.pi, nphotons)
+        dcos = np.random.uniform(-1.0, 1.0, nphotons)
+        dir = np.array( zip( np.sqrt(1-dcos[:]*dcos[:])*np.cos(dphi[:]), np.sqrt(1-dcos[:]*dcos[:])*np.sin(dphi[:]), dcos[:] ), dtype=np.float32 )
+
+        pos = np.tile([0,0,0], (nphotons,1)).astype(np.float32)
+        pol = np.zeros_like(pos)
+        phi = np.random.uniform(0, 2*np.pi, nphotons).astype(np.float32)
+        pol[:,0] = np.cos(phi)
+        pol[:,1] = np.sin(phi)
+        t = np.zeros(nphotons, dtype=np.float32) + 100.0 # Avoid negative photon times
+        wavelengths = np.empty(nphotons, np.float32)
+        wavelengths.fill(128.0)
+
+        photons = Photons(pos=pos, dir=dir, pol=pol, t=t, wavelengths=wavelengths)
+        hit_charges = []
+        for ev in self.sim.simulate( (photons for i in xrange(1)), keep_photons_end=True, keep_photons_beg=False, ):
+            ev.photons_end.dump_history()
+            lht = ev.photons_end[0].last_hit_triangles
+            nhits = ev.channels.hit[ np.arange(0,30)[:] ]
+            
+            print "nchannels: ",len(ev.channels.hit)
+            print nhits
+            print ev.channels.q
+            print ev.channels.t
 
 if __name__ == "__main__":
-    api.use_opencl()
     unittest.main()
     

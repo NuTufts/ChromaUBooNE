@@ -34,7 +34,7 @@ class Api(ApiSingleton):
         if apipreference!=None and apipreference not in [Api.cuda,Api.opencl]:
             raise ValueError( "invalid prefence for GPU API: ",apipreference )
         try:
-            import pycuda.drv as cuda
+            import pycuda.driver as cuda
             self.has_pycuda = True
         except:
             self.has_pycuda = False
@@ -44,15 +44,16 @@ class Api(ApiSingleton):
             self.has_pyopencl = True
         except:
             self.has_pyopencl = False
+        print "API available OpenCL=",self.has_pyopencl,", CUDA=",self.has_pycuda
 
-        if self.has_pycuda and not self.has_pyopecl:
+        if self.has_pycuda and not self.has_pyopencl:
+            # Cuda only
             self.using = Api.cuda
         elif self.has_pyopencl and not self.has_pycuda:
             self.using = Api.opencl
         else:
             if apipreference==None:
-                print "Found both APIs. Need preference."
-                raise
+                raise ValueError( "Found both APIs. Need preference." )
             self.using = apipreference
 
         print "Setting API: ",self.using
