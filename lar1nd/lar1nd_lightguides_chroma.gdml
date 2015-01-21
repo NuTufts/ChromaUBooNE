@@ -36292,6 +36292,7 @@
 </volume>-->
 
 
+<!-- old bars
  <volume name="volOpDetSensitive">
   <materialref ref="LAr"/>
   <solidref ref="lightguidebarcoating"/>
@@ -36312,11 +36313,17 @@
    <position name="poslightguidebar" unit="cm" x="0" y="0" z="0"/>
   </physvol>
  </volume>
+-->
+<volume name="vollightguidedetector">
+  <materialref ref="Acrylic"/>
+  <solidref ref="lightguidedetector"/>
+</volume>
 
-  <volume name="volInsulation">
-	<materialref ref="PU_foam_light"/>
-	<solidref ref="Insulation"/>
-  </volume>
+
+<volume name="volInsulation">
+  <materialref ref="PU_foam_light"/>
+  <solidref ref="Insulation"/>
+</volume>
 
  <volume name="volAPAFrame">
    <materialref ref="STEEL_STAINLESS_Fe7Cr2Ni"/>
