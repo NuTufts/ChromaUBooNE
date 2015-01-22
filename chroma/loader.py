@@ -8,7 +8,8 @@ logger = logging.getLogger(__name__)
 
 import chroma.api as api
 from chroma.cache import Cache
-from chroma.bvh import make_simple_bvh, make_recursive_grid_bvh
+from chroma.bvh.simple import make_simple_bvh
+from chroma.bvh.grid import make_recursive_grid_bvh
 from chroma.geometry import Geometry, Solid, Mesh, vacuum
 from chroma.detector import Detector
 from chroma.stl import mesh_from_stl
@@ -146,8 +147,8 @@ def load_geometry_from_string(geometry_str,
     return geometry
 
 def load_bvh(geometry,  bvh_name="default", 
-             auto_build_bvh=True, read_bvh_cache=True,
-             update_bvh_cache=True, cache_dir=None,
+             auto_build_bvh=True, read_bvh_cache=True, target_degree=3,
+             update_bvh_cache=True, cache_dir=None, bvh_method='grid',
              cuda_device=None, cl_device=None):
     if cache_dir is None:
         cache = Cache()
@@ -167,11 +168,21 @@ def load_bvh(geometry,  bvh_name="default",
         # creates quick context to make BVH
         if api.is_gpu_api_cuda():
             context = cutools.create_cuda_context(cuda_device)
-            bvh = make_recursive_grid_bvh(geometry.mesh, target_degree=3)
+            if bvh_method=='grid':
+                bvh = make_recursive_grid_bvh(geometry.mesh, target_degree=3)
+            elif bvh_method=='simple':
+                bvh = make_simple_bvh( geometry.mesh, 3 )
+            else:
+                raise ValueError('Requestd BVH construction method invalid: %s'%(bvh_method))
             context.pop()
         elif api.is_gpu_api_opencl():
             context = cltools.create_cl_context( cl_device )
-            bvh = make_recursive_grid_bvh(geometry.mesh, target_degree=3)
+            if bvh_method=='grid':
+                bvh = make_recursive_grid_bvh(geometry.mesh, target_degree=target_degree)
+            elif bvh_method=='simple':
+                bvh = make_simple_bvh( geometry.mesh, target_degree )
+            else:
+                raise ValueError('Requestd BVH construction method invalid: %s'%(bvh_method))
             cltools.close_cl_context(context)
 
         logger.info('BVH generated in %1.1f seconds.' % (time.time() - start))

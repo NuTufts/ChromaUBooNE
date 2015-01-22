@@ -13,6 +13,7 @@ from chroma.tools import profile_if_possible
 from chroma import event
 from chroma.gpu.tools import get_module, api_options, chunk_iterator, to_float3, copy_to_float3
 from chroma.gpu.gpufuncs import GPUFuncs
+import time
 
 
 class GPUPhotons(object):
@@ -130,8 +131,9 @@ class GPUPhotons(object):
             number of curandStates.
         """
         nphotons = self.pos.size
+        maxqueue = nphotons
         step = 0
-        input_queue = np.empty(shape=nphotons+1, dtype=np.uint32)
+        input_queue = np.empty(shape=maxqueue+1, dtype=np.uint32)
         input_queue[0] = 0
         # Order photons initially in the queue to put the clones next to each other
         for copy in xrange(self.ncopies):
@@ -142,7 +144,7 @@ class GPUPhotons(object):
             comqueue = cl.CommandQueue(cl_context)
             input_queue_gpu = ga.to_device(comqueue,input_queue[1:]) # why the offset?
 
-        output_queue = np.zeros(shape=nphotons+1, dtype=np.uint32)
+        output_queue = np.zeros(shape=maxqueue+1, dtype=np.uint32)
         output_queue[0] = 1
         if api.is_gpu_api_cuda():
             output_queue_gpu = ga.to_gpu(output_queue)
@@ -154,21 +156,27 @@ class GPUPhotons(object):
         else:
             iuse_weights = 0
 
+        adapt_factor = 1.0
         while step < max_steps:
             # Just finish the rest of the steps if the # of photons is low
-            if nphotons < nthreads_per_block * 16 * 8 or use_weights:
-                nsteps = max_steps - step
-            else:
-                nsteps = 1
+            #if nphotons < nthreads_per_block * 16 * 8 or use_weights:
+            #    nsteps = max_steps - step
+            #else:
+            #    nsteps = 1
+            nsteps = 1
 
+            start_step = time.time()
             for first_photon, photons_this_round, blocks in \
-                    chunk_iterator(nphotons, nthreads_per_block, max_blocks):
+                    chunk_iterator(nphotons, nthreads_per_block, max( int(adapt_factor*max_blocks), 1 )):
+                print nphotons, nthreads_per_block, max_blocks," : ",first_photon, photons_this_round, blocks, adapt_factor
+                start_chunk = time.time()
                 if api.is_gpu_api_cuda():
                     self.gpu_funcs.propagate(np.int32(first_photon), np.int32(photons_this_round), 
                                              input_queue_gpu[1:], output_queue_gpu, rng_states, 
                                              self.pos, self.dir, self.wavelengths, self.pol, self.t, self.flags, self.last_hit_triangles, 
                                              self.weights, np.int32(nsteps), np.int32(iuse_weights), np.int32(scatter_first), 
                                              gpu_geometry.gpudata, block=(nthreads_per_block,1,1), grid=(blocks, 1))
+                    cuda.Context.get_current().synchronize()
                 elif api.is_gpu_api_opencl():
                     self.gpu_funcs.propagate( comqueue, (nthreads_per_block,1,1), (blocks, 1,1),
                                               np.int32(first_photon), np.int32(photons_this_round),
@@ -192,26 +200,45 @@ class GPUPhotons(object):
                                               gpu_geometry.surface_data['eta'].data, gpu_geometry.surface_data['k'].data, gpu_geometry.surface_data['reemission_cdf'].data,
                                               gpu_geometry.surface_data['model'].data, gpu_geometry.surface_data['transmissive'].data, gpu_geometry.surface_data['thickness'].data,
                                               g_times_l=True ).wait()
+                end_chunk = time.time()
+                chunk_time = end_chunk-start_chunk
+                print "chunk time: ",chunk_time
+                if chunk_time>2.5:
+                    adapt_factor *= 0.5
             step += nsteps
             scatter_first = 0 # Only allow non-zero in first pass
-
+            end_step = time.time()
+            print "step time: ",end_step-start_step
+            
             if step < max_steps:
+                start_requeue = time.time()
                 print "reset photon queues"
                 if api.is_gpu_api_cuda():
-                    temp = input_queue_gpu
-                    input_queue_gpu = output_queue_gpu
-                    output_queue_gpu = temp
+                    #temp = input_queue_gpu
+                    #input_queue_gpu = output_queue_gpu
+                    #output_queue_gpu = temp
                     # Assign with a numpy array of length 1 to silence
                     # warning from PyCUDA about setting array with different strides/storage orders.
-                    output_queue_gpu[:1].set(np.ones(shape=1, dtype=np.uint32))
-                    nphotons = input_queue_gpu[:1].get()[0] - 1
+                    #output_queue_gpu[:1].set(np.ones(shape=1, dtype=np.uint32))
+                    #nphotons = input_queue_gpu[:1].get()[0] - 1
+                    # new style
+                    output_queue_gpu.get( output_queue )
+                    nphotons = output_queue[0]-1
+                    input_queue_gpu.set( output_queue )
+                    output_queue_gpu[:1].set(np.ones(shape=1,dtype=np.uint32))
+                    cuda.Context.get_current().synchronize()
                 elif api.is_gpu_api_opencl():
                     temp_out = output_queue_gpu.get()
                     nphotons = temp_out[0]
                     input_queue_gpu.set( temp_out[1:], queue=comqueue ) # set the input queue to have index of photons still need to be run
                     output_queue_gpu[:1].set( np.ones(shape=1,dtype=np.uint32), queue=comqueue ) # reset first instance to be one
+                end_requeue = time.time()
+                print "re-queue time: ",end_requeue-start_requeue
 
-        if ga.max(self.flags).get() & (1 << 31):
+        print "flag check"
+        end_flags = self.flags.get()
+        end_flag = np.max(end_flags)
+        if end_flag & (1 << 31):
             print >>sys.stderr, "WARNING: ABORTED PHOTONS"
         if api.is_gpu_api_cuda():
             cuda.Context.get_current().synchronize()

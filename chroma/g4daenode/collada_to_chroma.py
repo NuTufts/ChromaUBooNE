@@ -826,9 +826,7 @@ class ColladaToChroma(object):
             surfacename = "NOT SPECIFIED"
         else:
             surfacename = surface.name
-        print "[NODE %05d:%s]"%(node.index,node.lv.id)," NTriangles=%d OuterMat=%s InnerMat=%s Surface=%s"%(len(mesh.triangles), material2.name, material1.name, surfacename)
-        if "volDetEnclosure" in node.lv.id:
-            print vertices
+        #print "[NODE %05d:%s]"%(node.index,node.lv.id)," NTriangles=%d OuterMat=%s InnerMat=%s Surface=%s"%(len(mesh.triangles), material2.name, material1.name, surfacename)
 
         color = 0x33ffffff 
 

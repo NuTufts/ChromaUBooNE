@@ -5,19 +5,45 @@ import chroma.api as api
 api.use_cuda()
 from chroma.sim import Simulation
 from chroma.event import Photons
+import chroma.event as event
 from chroma.uboone.uboonedet import ubooneDet
 try:
     import ROOT as rt
+    from rootpy.tree import Tree, TreeModel, FloatCol, IntCol
+    from rootpy.io import root_open
     has_root = True
 except:
     has_root = False
 
+if has_root:
+    class PhotonData( TreeModel ):
+        end_x = FloatCol()
+        end_y = FloatCol()
+        end_z = FloatCol()
+        reflect_diffuse  = IntCol()
+        reflect_specular = IntCol()
+        bulk_scatter     = IntCol()
+        bulk_absorb      = IntCol()
+        surface_detect   = IntCol()
+        surface_absorb   = IntCol()
+        surface_reemit   = IntCol()
+        
+        def reset(self):
+            self.reflect_diffuse  = 0
+            self.reflect_specular = 0
+            self.bulk_scatter     = 0
+            self.bulk_absorb      = 0
+            self.surface_detect   = 0
+            self.surface_absorb   = 0
+            self.surface_reemit   = 0
+
 class TestUbooneDetector(unittest.TestCase):
     def setUp(self):
         #self.geo = ubooneDet( "../gdml/microboone_nowires_chroma_simplified.dae",  acrylic_detect=False, acrylic_wls=True )
-        self.geo = ubooneDet( "../gdml/microboone_nowires_chroma_simplified.dae",  
+        self.geo = ubooneDet( "../gdml/microboone_nowires_chroma_simplified.dae",  detector_volumes=["vol_PMT_AcrylicPlate"],
                               acrylic_detect=True, acrylic_wls=False,
-                              read_bvh_cache=False, cache_dir="./uboone_bvh_nowires")
+                              read_bvh_cache=False, cache_dir="./uboone_bvh_nowires",
+                              bvh_method='grid'  )
         self.sim = Simulation(self.geo, geant4_processes=0)
 
     @unittest.skip('skipping testDet')
@@ -46,6 +72,7 @@ class TestUbooneDetector(unittest.TestCase):
 
         # Run only one photon at a time
         nphotons = 1000000
+        #nphotons = 7200000
 
         dphi = np.random.uniform(0,2.0*np.pi, nphotons)
         dcos = np.random.uniform(-1.0, 1.0, nphotons)
@@ -59,9 +86,14 @@ class TestUbooneDetector(unittest.TestCase):
         t = np.zeros(nphotons, dtype=np.float32) + 100.0 # Avoid negative photon times
         wavelengths = np.empty(nphotons, np.float32)
         wavelengths.fill(128.0)
-
         photons = Photons(pos=pos, dir=dir, pol=pol, t=t, wavelengths=wavelengths)
         hit_charges = []
+
+        if has_root:
+            root_file = root_open("output_test_uboone.root", "recreate")
+            root_tree = Tree("PhotonData", model=PhotonData )
+            root_tree.reset()
+
         for ev in self.sim.simulate( (photons for i in xrange(1)), keep_photons_end=True, keep_photons_beg=False, ):
             ev.photons_end.dump_history()
             lht = ev.photons_end[0].last_hit_triangles
@@ -71,6 +103,25 @@ class TestUbooneDetector(unittest.TestCase):
             print nhits
             print ev.channels.q
             print ev.channels.t
+
+            if has_root:
+                # Fill Tree
+                print "save info for ",len(ev.photons_end)
+                for photon in ev.photons_end:
+                    root_tree.end_x = photon.pos[0]
+                    root_tree.end_y = photon.pos[1]
+                    root_tree.end_z = photon.pos[2]
+
+                    root_tree.reflect_diffuse  = int( event.REFLECT_DIFFUSE & photon.flags )
+                    root_tree.reflect_specular = int( event.REFLECT_SPECULAR & photon.flags )
+                    root_tree.bulk_scatter     = int( event.RAYLEIGH_SCATTER & photon.flags )
+                    root_tree.bulk_absorb      = int( event.BULK_ABSORB & photon.flags )
+                    root_tree.surface_detect   = int( event.SURFACE_DETECT & photon.flags )
+                    root_tree.surface_absorb   = int( event.SURFACE_ABSORB & photon.flags )
+                    root_tree.surface_reemit   = int( event.SURFACE_REEMIT & photon.flags )
+                    root_tree.fill()
+        if has_root:
+            root_tree.write()
 
 if __name__ == "__main__":
     unittest.main()

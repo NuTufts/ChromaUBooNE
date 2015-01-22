@@ -85,6 +85,19 @@ def make_acrylic_surface_wlsmode():
     return acrylic_surface
 
 # ----------------------------------------------------
+# G10: Guessing!
+def make_G10_surface():
+    g10_surface = Surface("g10_surface")
+    g10_surface.set('reflect_diffuse', 0.5)
+    g10_surface.set('reflect_specular',0.0)
+    g10_surface.set('detect',0.0)
+    g10_surface.set('absorb',0.5)
+    g10_surface.set('reemit',0.0)
+    g10_surface.transmissive = 0
+    return g10_surface
+
+
+# ----------------------------------------------------
 # absorbing surface
 def make_absorbing_surface(name="absorbing_surface"):
     # mostly fake numbers based on http://www.shimadzu.com/an/uv/support/uv/ap/measuring_solar2.html
@@ -99,13 +112,13 @@ def make_absorbing_surface(name="absorbing_surface"):
     return black_surface
 
 
-
 # ----------------------------------------------------
 # Boundary Surface Definitions
 
 boundary_surfaces = { ("STEEL_STAINLESS_Fe7Cr2Ni", "LAr"): make_steel_surface(),
                       ("Titanium", "LAr"): make_titanium_surface(),
                       ("Acrylic", "LAr"):make_acrylic_surface_detectmode(),
+                      ("G10", "LAr"):make_G10_surface(),
                       ("Glass", "LAr"):make_glass_surface(),
                       ("Glass", "STEEL_STAINLESS_Fe7Cr2Ni"):make_steel_surface(),
                       ("Glass","Vacuum"):make_absorbing_surface("pmt_inner_surface"),
@@ -118,7 +131,12 @@ def get_boundary_surface( matname1, matname2 ):
     if m1==m2:
         return None
     if m1 not in materials.materialnames or m2 not in materials.materialnames:
-        raise ValueError( "bounary between materials not defined" )
+        missing = []
+        if m1 not in materials.materialnames:
+            missing.append(m1)
+        if m2 not in materials.materialnames:
+            missing.append(m2)
+        raise ValueError( "bounary between materials not defined. Missing: %s"%(missing) )
     if (m1,m2) in boundary_surfaces:
         return boundary_surfaces[(m1,m2)]
     elif (m2,m1) in boundary_surfaces:

@@ -14,6 +14,7 @@ materialnames = ["LAr",                       # liquid argon [ may have its own 
                  "PU_foam_light",             # mastic insulation. Irrelevant.
                  "PU_foam_dense",             # mastic insulation. Irrelevant.
                  "Air",                       # lab air, Irrelevant
+                 "G10",                       # fiberglass
                  "Concrete",]                 # Irrelevant
 # --------------------------------------------------------------------------------
 # what needs to be specified.
@@ -134,6 +135,12 @@ def load_pufoam_material_info( matclass ):
     matclass.set( 'scattering_length', 1.0 )
     matclass.set( 'absorption_length', 1.0 )
 
+def load_G10_material_info( matclass ):
+    # using dummy values, as we never expect photons to be propagating here
+    matclass.set( 'refractive_index',  1.0 )
+    matclass.set( 'scattering_length', 1.0 )
+    matclass.set( 'absorption_length', 1.0 )
+
 def load_dummy_material_info( matclass ):
     # using dummy values, as we never expect photons to be propagating here
     matclass.set( 'refractive_index',  1.0 )
@@ -156,7 +163,8 @@ def load_uboone_materials( c2cclass ):
                 "STEEL_STAINLESS_Fe7Cr2Ni":load_vacuum_material_info,
                 "PU_foam_light":load_pufoam_material_info,
                 "PU_foam_dense":load_pufoam_material_info,
-                "Concrete":load_concrete_material_info }
+                "Concrete":load_concrete_material_info,
+                "Concrete":load_G10_material_info }
     
 def clean_material_name( matname ):
     # pointer addresses attached to names
