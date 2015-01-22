@@ -3,7 +3,8 @@ import os
 from unittest_find import unittest
 import chroma.gpu.tools as tools
 import pyopencl as cl
-from chroma.bvh import make_simple_bvh, BVH
+from chroma.bvh import BVH
+from chroma.bvh.simple import make_simple_bvh
 from chroma.bvh.bvh import node_areas
 import chroma.models
 
