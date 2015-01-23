@@ -2,6 +2,8 @@ import os
 import pytools
 import pyopencl as cl
 from chroma.cl import srcdir
+from chroma.gpu.gpufuncs import GPUFuncs
+from chroma.gpu.chunkiterator import chunk_iterator
 import numpy as np
 
 cl_options = ()
@@ -120,11 +122,10 @@ def get_rng_states( size, seed=1, cl_context=None ):
 def fill_array( context, rng_states, size ):
     queue = cl.CommandQueue(context)
     out_gpu = cl.array.empty( queue, size, dtype=np.float32 )
-    randmod = get_cl_module( "random.cl", context, options=api_options, include_source_directory=True)
+    randmod = get_cl_module( "random.cl", context, options=cl_options, include_source_directory=True)
     randfuncs = GPUFuncs( randmod )
     nthreads_per_block = 256
-    for first_index, elements_this_iter, nblocks_this_iter in \
-            chunk_iterator(size, nthreads_per_block, max_blocks=1):
+    for first_index, elements_this_iter, nblocks_this_iter in chunk_iterator(size, nthreads_per_block, max_blocks=1):
         randfuncs.fillArray( queue, (nthreads_per_block,1,1), None,
                              np.uint32(first_index),
                              rng_states.data,

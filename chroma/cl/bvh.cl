@@ -6,6 +6,8 @@
 #include "physical_constants.h"
 #include "sorting.h"
 
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+
 float3 vminf(const float3 *a, const float3 *b);
 float3 vmaxf(const float3 *a, const float3 *b);
 unsigned long spread3_16(unsigned int input);
@@ -87,7 +89,12 @@ unsigned int quantize(float v, float world_origin, float world_scale)
 {
   // truncate!
   // returns a scaled 32 bit unsigned integer
-  return (unsigned int) ((v - world_origin) / world_scale);
+  double world_origin0 = world_origin;
+  double v0 = v;
+  double world_scale0 = world_scale;
+  double scaled_pos = ((v0 - world_origin0) / world_scale0);
+  return (unsigned int) scaled_pos;
+//return (unsigned int) ((v - world_origin) / world_scale);
 }
 
 uint3 quantize3(float3 v, float3 world_origin, float world_scale)
