@@ -2,7 +2,8 @@ import os,sys
 from unittest_find import unittest
 import numpy as np
 import chroma.api as api
-api.use_cuda()
+#api.use_cuda()
+api.use_opencl()
 from chroma.sim import Simulation
 from chroma.event import Photons
 import chroma.event as event
@@ -42,7 +43,7 @@ class TestUbooneDetector(unittest.TestCase):
         self.geo = ubooneDet( "lar1nd_chroma.dae", detector_volumes=["vollightguidedetector"],
                               acrylic_detect=True, acrylic_wls=False,
                               read_bvh_cache=True, cache_dir="./lar1nd_cache")
-        self.sim = Simulation(self.geo, geant4_processes=0, nthreads_per_block=64, max_blocks=256)
+        self.sim = Simulation(self.geo, geant4_processes=0, nthreads_per_block=1, max_blocks=100)
 
     @unittest.skip('skipping testDet')
     def testDet(self):
