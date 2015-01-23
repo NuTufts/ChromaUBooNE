@@ -8,7 +8,7 @@ MAX_CHILD = 2**(32 - CHILD_BITS) - 1
 def count_unique_in_sorted(a):
     return (np.ediff1d(a) > 0).sum() + 1
 
-def make_recursive_grid_bvh(mesh, target_degree=3):
+def make_recursive_grid_bvh(mesh, target_degree=3, save_morton_codes=None):
     '''Returns a BVH created using a 'recursive grid' method.
 
     This method is somewhat similar to the original Chroma BVH generator, 
@@ -26,6 +26,11 @@ def make_recursive_grid_bvh(mesh, target_degree=3):
     argsort = morton_codes.argsort()
     leaf_nodes = leaf_nodes[argsort]
     morton_codes = morton_codes[argsort]
+    if save_morton_codes is not None:
+        morton_out = open(save_morton_codes,'w')
+        for i in argsort:
+            print>>morton_out,leaf_nodes[i],morton_codes[i]
+        morton_out.close()
 
     # Create parent layers
     layers = [leaf_nodes]
