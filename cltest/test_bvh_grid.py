@@ -1,6 +1,8 @@
 import os
-os.environ["PYOPENCL_CTX"] ='0:0'
+#os.environ["PYOPENCL_CTX"] ='0:1'
 from unittest_find import unittest
+import chroma.api as api
+api.use_opencl()
 import chroma.gpu.tools as tools
 import pyopencl as cl
 from chroma.bvh import BVH

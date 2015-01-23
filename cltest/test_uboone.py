@@ -1,10 +1,10 @@
 import os,sys
-os.environ['PYOPENCL_CTX']='0:0'
-os.environ['PYOPENCL_COMPILER_OUTPUT'] = '0'
-from unittest_find import unittest
-import numpy as np
+#os.environ['PYOPENCL_CTX']='0:0'
+#os.environ['PYOPENCL_COMPILER_OUTPUT'] = '0'
 import chroma.api as api
 api.use_opencl()
+from unittest_find import unittest
+import numpy as np
 from chroma.sim import Simulation
 from chroma.event import Photons
 from chroma.uboone.uboonedet import ubooneDet
@@ -20,21 +20,9 @@ class TestUbooneDetector(unittest.TestCase):
         self.geo = ubooneDet( "../gdml/microboone_nowires_chroma_simplified.dae", detector_volumes=["vol_PMT_AcrylicPlate"],
                               acrylic_detect=True, acrylic_wls=False,  
                               read_bvh_cache=False, cache_dir="./uboone_bvh_nowires")
-        self.sim = Simulation(self.geo, geant4_processes=0, nthreads_per_block=1, max_blocks=7)
+        self.sim = Simulation(self.geo, geant4_processes=0, nthreads_per_block=256, max_blocks=256)
         self.origin = self.geo.bvh.world_coords.world_origin
 
-        print self.geo.bvh.nodes[:5]
-
-        print "Triangles"
-        print self.geo.mesh.triangles
-
-        print "Vertices"
-        print self.geo.mesh.vertices
-
-        print "number of surfaces: ",len( self.geo.surface_index )
-        print "number unique surfces: ", len( self.geo.unique_surfaces )
-        for i in xrange(0,5):
-            print "surface %d: "%(i), np.sum( np.where( self.geo.surface_index==i, 1, 0 ) )
 
     @unittest.skip('skipping testDet')
     def testDet(self):
@@ -67,7 +55,7 @@ class TestUbooneDetector(unittest.TestCase):
     def testPhotonBomb(self):
 
         # Run only one photon at a time
-        nphotons = 100000
+        nphotons = 1000000
 
         dphi = np.random.uniform(0,2.0*np.pi, nphotons)
         dcos = np.random.uniform(-1.0, 1.0, nphotons)
