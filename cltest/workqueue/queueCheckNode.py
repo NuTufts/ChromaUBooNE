@@ -6,6 +6,7 @@ from chroma.gpu.tools import get_module, api_options, chunk_iterator, to_float3,
 import pyopencl.array as ga
 import pyopencl as cl
 import numpy as np
+import time
 
 class queueCheckNode(workQueue):
 
@@ -88,7 +89,7 @@ class queueCheckNode(workQueue):
         workgroup_daughter = cl.LocalMemory( c.nbytes*(max_nodes_can_store+1) )
         workgroup_sibling = cl.LocalMemory( c.nbytes*(max_nodes_can_store+1) )
         workgroup_aunt = cl.LocalMemory( c.nbytes*(max_nodes_can_store+1) )
-        max_loops = 3
+        max_loops = 33
 
         if len(gpugeo.extra_nodes)>1:
             raise RuntimeError('did not plan for there to be a node split.')
@@ -113,6 +114,7 @@ class queueCheckNode(workQueue):
         print "PRESUB TESTED NODES"
         print photon_tested_node
 
+        start_queue = time.time()
         gpu_funcs.checknode( comqueue, (workgroupsize,1,1), (workgroupsize,1,1),
                              np.int32(max_loops),
                              photon_pos.data, photon_dir.data, photon_current_node.data, photon_tested_node.data, photon_last_result.data,
@@ -122,11 +124,17 @@ class queueCheckNode(workQueue):
                              np.int32(workgroupsize), workgroup_photons, workgroup_current_node, workgroup_tested_node,
                              max_nodes_can_store, workgroup_nodes, workgroup_daughter, workgroup_sibling, workgroup_aunt,
                              loaded_node_start_index, loaded_node_end_index ).wait()
+        end_queue = time.time()
 
-        print "Current node"
-        print photon_current_node.get()
-        print "To be tested Nodes"
-        print photon_tested_node.get()
+        print "CheckNode Queue returns. ",end_queue-start_queue," seconds"
+        print "(Current node, To Test)"
+        node_states = zip( photon_current_node.get(), photon_tested_node.get() )
+        for x in xrange(0,len(node_states), 10):
+            y = x+10
+            if y>len(node_states):
+                y = len(node_states)
+            print x,": ",node_states[x:y]
+
         print "LAST RESULT:"
         print photon_last_result.get()
 

@@ -25,6 +25,7 @@ __kernel void checknode( const int max_loops,
   __local uint requestnode_min;
   __local uint requestnode_max;
   __local bool transfer_nodes;
+  __local bool bail;
   __local uint iloop;
 
   // initialize local variables
@@ -36,6 +37,7 @@ __kernel void checknode( const int max_loops,
     requestnode_min = 0;
     requestnode_max = 1;
     iloop = 0;
+    bail = false;
   }
   barrier( CLK_LOCAL_MEM_FENCE );
 
@@ -72,8 +74,6 @@ __kernel void checknode( const int max_loops,
       pop_pos = next_pos;
     }
 
-    // thread zero, 
-    
     barrier( CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE );
 
     // thread zero, polls range of nodes to get
@@ -100,7 +100,7 @@ __kernel void checknode( const int max_loops,
 	// just not ready yet
 	//printf('cannot aad nodes\n');
 	current_node[ localid ] = requestnode_max-requestnode_min;      
-	return;
+	bail = true;
       }
     }
 
@@ -112,6 +112,8 @@ __kernel void checknode( const int max_loops,
       num_blocks++;
 
     barrier( CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE );    
+    if ( bail )
+      break;
 
     if ( transfer_nodes ) {
       for (int iblock=0; iblock<num_blocks; iblock++ ) {
@@ -187,12 +189,12 @@ __kernel void checknode( const int max_loops,
 	    if ( push_pos>=(uint)queue_size )
 	      push_pos = 0;
 	  }
-	  // push to global
-	  current_node[ workgroup_photons[ i ] ] = workgroup_current_node[ i ];
-	  test_node[ workgroup_photons[ i ] ] = workgroup_tested_node[ i ];
+	  // push to global: atomic to prevent competition with other compute units
+	  //atomic_xchg( current_node[ workgroup_photons[ i ] ], workgroup_current_node[ i ] );
+	  //atomic_xchg( test_node[ workgroup_photons[ i ] ], workgroup_tested_node[ i ] );
+	  atomic_xchg( current_node + workgroup_photons[ i ], workgroup_current_node[ i ] );
+	  atomic_xchg( test_node + workgroup_photons[ i ],    workgroup_tested_node[ i ] );
 
-	  // remove prevous photons
-	  
 	}
       }
       
