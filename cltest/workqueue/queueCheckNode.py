@@ -33,7 +33,7 @@ class queueCheckNode(workQueue):
 
         # get information on what they need:
         # node list
-        max_shared_nodes = self.shared_mem_size/(4*4) # 4 is size of uint32, easy node has 4 of them
+        max_shared_nodes = self.shared_mem_size/((4+7)*4) # 4 is size of uint32, each node has 4 of them, plus daugher, sibling, aunt
         if bvh.nodes.nbytes<self.shared_mem_size:
             # lucky us, we can push the entire node list onto the device (though rarely will be the case)
             node_chunks = [0,len(bvh.nodes)-1]
@@ -56,7 +56,8 @@ class queueCheckNode(workQueue):
         photon_pos = photons.pos
         photon_dir = photons.dir
         photon_current_node = photons.current_node_index
-        photon_tested_node  = ga.to_device( comqueue, 3*np.ones( len(photons.pos), dtype=np.uint32 ) )
+        photon_tested_node  = ga.to_device( comqueue, 1*np.ones( len(photons.pos), dtype=np.uint32 ) )
+        photon_last_result  = ga.to_device( comqueue, -1*np.ones( len(photons.pos), dtype=np.int32 ) )
         nodes = gpugeo.nodes
         node_parent = ga.to_device( comqueue, sim.detector.node_dsar_tree.parent )
         node_first_daughter = ga.to_device( comqueue, sim.detector.node_dsar_tree.first_daughter )
@@ -73,6 +74,7 @@ class queueCheckNode(workQueue):
         queue_slot_flag[0:len(photons.pos)]    = np.ones( len(photons.pos), dtype=np.int32 )[:]
         a = ga.zeros( comqueue, 1, dtype=ga.vec.uint4 )
         b = np.array( 1, dtype=np.int32 )
+        c = np.array( 1, dtype=np.uint32 )
         workgroup_photons      = cl.LocalMemory( b.nbytes*workgroupsize )
         workgroup_current_node = cl.LocalMemory( b.nbytes*workgroupsize )
         workgroup_tested_node  = cl.LocalMemory( b.nbytes*workgroupsize )
@@ -83,7 +85,10 @@ class queueCheckNode(workQueue):
         loaded_node_start_index = np.int32(0)
         loaded_node_end_index   = np.int32(1)
         workgroup_nodes = cl.LocalMemory( a.nbytes*(max_nodes_can_store+1) )
-        max_loops = 4
+        workgroup_daughter = cl.LocalMemory( c.nbytes*(max_nodes_can_store+1) )
+        workgroup_sibling = cl.LocalMemory( c.nbytes*(max_nodes_can_store+1) )
+        workgroup_aunt = cl.LocalMemory( c.nbytes*(max_nodes_can_store+1) )
+        max_loops = 3
 
         if len(gpugeo.extra_nodes)>1:
             raise RuntimeError('did not plan for there to be a node split.')
@@ -103,20 +108,43 @@ class queueCheckNode(workQueue):
         print "Left over: ",self.shared_mem_size-max_nodes_can_store*a.nbytes-a.nbytes*workgroupsize
         print sim.detector.bvh.layer_bounds
 
+        print "PRESUB CURRENT NODES"
         print photon_current_node
+        print "PRESUB TESTED NODES"
+        print photon_tested_node
 
         gpu_funcs.checknode( comqueue, (workgroupsize,1,1), (workgroupsize,1,1),
                              np.int32(max_loops),
-                             photon_pos.data, photon_dir.data, photon_current_node.data, photon_tested_node.data,
+                             photon_pos.data, photon_dir.data, photon_current_node.data, photon_tested_node.data, photon_last_result.data,
                              np.int32(len(nodes)), nodes.data, node_parent.data, node_first_daughter.data, node_sibling.data, node_aunt.data,
                              world_origin.data, world_scale, 
-                             queue_size, queue_photon_index.data, queue_slot_flag.data, 
+                             queue_size, queue_photon_index.data, queue_slot_flag.data, np.int32(len(photon_pos)),
                              np.int32(workgroupsize), workgroup_photons, workgroup_current_node, workgroup_tested_node,
-                             max_nodes_can_store, workgroup_nodes, loaded_node_start_index, loaded_node_end_index ).wait()
+                             max_nodes_can_store, workgroup_nodes, workgroup_daughter, workgroup_sibling, workgroup_aunt,
+                             loaded_node_start_index, loaded_node_end_index ).wait()
 
+        print "Current node"
         print photon_current_node.get()
-        #print queue_slot_flag.get()
-        print len( photon_current_node.get() )
+        print "To be tested Nodes"
+        print photon_tested_node.get()
+        print "LAST RESULT:"
+        print photon_last_result.get()
+
+        print "PHOTON QUEUE"
+        photon_queue = queue_photon_index.get()
+        for x in xrange(0,len(photon_queue), 32):
+            y = x+32
+            if y>len(photon_queue):
+                y = len(photon_queue)
+            print x,": ",photon_queue[x:y]
+
+        print "QUEUE SLOT FLAGS"
+        slot_flags = queue_slot_flag.get()
+        for x in xrange(0,len(slot_flags), 32):
+            y = x+32
+            if y>len(slot_flags):
+                y = len(slot_flags)
+            print x,": ",slot_flags[x:y]
         pass
 
 

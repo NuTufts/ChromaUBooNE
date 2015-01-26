@@ -4,15 +4,16 @@
 
 __kernel void checknode( const int max_loops, 
 			 // Photon info [index by photon id]
-			 __global float3 *positions, __global float3 *directions, __global uint* current_node, __global uint* test_node,
+			 __global float3 *positions, __global float3 *directions, __global uint* current_node, __global uint* test_node, __global int* last_result,
 			 // Geometry    [indexed by node id]
 			 const int nnodes, __global uint4* nodes, __global uint* node_parent, __global uint* node_first_daughter, __global uint* node_sibling, __global uint* node_aunt,
 			 const float3 world_origin, const float world_scale,
 			 // work queue  [indexed slot]
-			 const int queue_size, __global int* queue_photon_index, __global int* queue_slot_flag, 
+			 const int queue_size, __global int* queue_photon_index, __global int* queue_slot_flag, const int first_empty_slot,
 			 // workgroup variables [indexed by local id]
 			 const int workgroup_size, __local int* workgroup_photons, __local int* workgroup_current_node, __local int* workgroup_tested_node,
-			 const int max_nodes_can_store, __local uint4* workgroup_nodes, const int loaded_node_start_index, const int loaded_node_end_index
+			 const int max_nodes_can_store, __local uint4* workgroup_nodes, __local uint* workgroup_daughter, __local uint* workgroup_sibling, __local uint* workgroup_aunt,
+			 const int loaded_node_start_index, const int loaded_node_end_index
 			 ) {
   int localid = get_local_id(0);
   int groupid = get_group_id(0);
@@ -29,7 +30,7 @@ __kernel void checknode( const int max_loops,
   // initialize local variables
   if ( get_local_id(0) == 0) {
     pop_pos = 0;
-    push_pos = workgroup_size;
+    push_pos = (uint)first_empty_slot;
     nodefront_min_index = loaded_node_start_index;
     nodefront_max_index = loaded_node_end_index;
     requestnode_min = 0;
@@ -50,6 +51,7 @@ __kernel void checknode( const int max_loops,
     if ( queue_index < queue_size && queue_slot_flag[queue_index]==1 ) {
       atomic_xchg( queue_slot_flag + queue_index,  0); // pop this slot
       workgroup_photons[ localid ]       = queue_photon_index[ queue_index ]; // queue needs to be filled by cpu before launching kernel
+      queue_photon_index[ queue_index ] = -1;
       workgroup_current_node[ localid ]  = current_node[ workgroup_photons[ localid ] ];
       workgroup_tested_node[ localid ]   = test_node[ workgroup_photons[ localid ] ];
     }
@@ -115,8 +117,12 @@ __kernel void checknode( const int max_loops,
       for (int iblock=0; iblock<num_blocks; iblock++ ) {
     	int local_inode = iblock*workgroup_size + localid;
     	int global_inode = nodefront_min + iblock*workgroup_size + localid;
-    	if ( local_inode < max_nodes_can_store && global_inode<nnodes )
+    	if ( local_inode < max_nodes_can_store && global_inode<nnodes ) {
     	  workgroup_nodes[ local_inode ] = nodes[ global_inode ];
+	  workgroup_daughter[ local_inode ] = node_first_daughter[ global_inode ];
+	  workgroup_sibling[ local_inode ]  = node_sibling[ global_inode ];
+	  workgroup_aunt[ local_inode ]     = node_aunt[ global_inode ];
+	}
       }
     }
     barrier( CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE );
@@ -146,12 +152,56 @@ __kernel void checknode( const int max_loops,
       node_struct.nchild = workitem_node.w >> CHILD_BITS;
 
       int intersects = intersect_internal_node( &photon_pos, &photon_dir, &node_struct );
+      last_result[ workgroup_photons[ localid ] ] = intersects;
 
+      if ( intersects ) {
+	// passes. update current node to test node.  set test node as first daughter of new node
+	uint next_daughter = workgroup_daughter[ local_test_nodeid ];
+	// store next nodes in local space first (later we will push the info into global memory
+	workgroup_current_node[ localid ] =  workgroup_tested_node[ localid ];
+	workgroup_tested_node[ localid ] = next_daughter;
+      }
+      else {
+	// does not pass.  check sibling of tested node.
+	//uint sibling = workgroup_daughter[ localid ];
+	//workgroup_current_node[ localid ] = workgroup_current_node[ localid ];
+	workgroup_tested_node[ localid ] = workgroup_sibling[ local_test_nodeid ];
+	if ( workgroup_tested_node[ localid ]==0 )
+	  workgroup_tested_node[ localid ] = workgroup_aunt[ local_test_nodeid ];
+ 	//else
+	//  workgroup_tested_node[ localid ] = workgroup_aunt[ localid ];
+      }
+
+      barrier( CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE );
+
+      // Now thread 0 pushes threads to end of queue for next step, if not a leaf node
+      if ( localid==0 ) {
+	// check each thread. if !leaf or !non-aunt, push to end of work queue
+	for (int i=0; i<workgroup_size; i++) {
+	  uint nchild = workgroup_nodes[ workgroup_tested_node[ i ]-nodefront_min_index ].w >> CHILD_BITS;
+	  if ( nchild>0 ) {
+	    // internal node
+	    queue_photon_index[ push_pos ] = workgroup_photons[ i ];
+	    atomic_xchg( queue_slot_flag+push_pos,  1);
+	    push_pos += 1;
+	    if ( push_pos>=(uint)queue_size )
+	      push_pos = 0;
+	  }
+	  // push to global
+	  current_node[ workgroup_photons[ i ] ] = workgroup_current_node[ i ];
+	  test_node[ workgroup_photons[ i ] ] = workgroup_tested_node[ i ];
+
+	  // remove prevous photons
+	  
+	}
+      }
+      
+      // For debug
 /*       // assume it intersects, update photon queue */
 /*       //current_node[ workgroup_photons[ localid ]  ] = workgroup_tested_node[ localid ]; */
 /*       //current_node[ workgroup_photons[ localid ]  ] = workitem_node.w; */
 /*       //current_node[ workgroup_photons[ localid ]  ] = local_test_nodeid; */
-      current_node[ workgroup_photons[ localid ]  ] = (uint)intersects;
+//      current_node[ workgroup_photons[ localid ]  ] = (uint)intersects;
     }
     
     
