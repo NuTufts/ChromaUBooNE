@@ -56,13 +56,13 @@ class queueCheckNode(workQueue):
         photon_pos = photons.pos
         photon_dir = photons.dir
         photon_current_node = photons.current_node_index
-        photon_tested_node  = ga.to_device( comqueue, np.ones( len(photons.pos), dtype=np.uint32 ) )
+        photon_tested_node  = ga.to_device( comqueue, 3*np.ones( len(photons.pos), dtype=np.uint32 ) )
         nodes = gpugeo.nodes
         node_parent = ga.to_device( comqueue, sim.detector.node_dsar_tree.parent )
         node_first_daughter = ga.to_device( comqueue, sim.detector.node_dsar_tree.first_daughter )
         node_sibling = ga.to_device( comqueue, sim.detector.node_dsar_tree.sibling )
         node_aunt = ga.to_device( comqueue, sim.detector.node_dsar_tree.aunt )
-        world_origin = gpugeo.world_origin
+        world_origin = gpugeo.world_origin_gpu
         world_scale  = gpugeo.world_scale
         # make queue related variables
         queue_size = np.int32( len(photons.pos)*2 )
@@ -77,7 +77,7 @@ class queueCheckNode(workQueue):
         workgroup_current_node = cl.LocalMemory( b.nbytes*workgroupsize )
         workgroup_tested_node  = cl.LocalMemory( b.nbytes*workgroupsize )
 
-        max_nodes_can_store = (max_shared_nodes - 10 - 3*workgroupsize )
+        max_nodes_can_store = (max_shared_nodes - 20 - 3*workgroupsize )
         max_nodes_can_store -= max_nodes_can_store%32
         max_nodes_can_store = np.int32( max_nodes_can_store )
         loaded_node_start_index = np.int32(0)
@@ -108,8 +108,8 @@ class queueCheckNode(workQueue):
         gpu_funcs.checknode( comqueue, (workgroupsize,1,1), (workgroupsize,1,1),
                              np.int32(max_loops),
                              photon_pos.data, photon_dir.data, photon_current_node.data, photon_tested_node.data,
-                             nodes.data, node_parent.data, node_first_daughter.data, node_sibling.data, node_aunt.data,
-                             world_origin, world_scale, 
+                             np.int32(len(nodes)), nodes.data, node_parent.data, node_first_daughter.data, node_sibling.data, node_aunt.data,
+                             world_origin.data, world_scale, 
                              queue_size, queue_photon_index.data, queue_slot_flag.data, 
                              np.int32(workgroupsize), workgroup_photons, workgroup_current_node, workgroup_tested_node,
                              max_nodes_can_store, workgroup_nodes, loaded_node_start_index, loaded_node_end_index ).wait()
