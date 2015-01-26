@@ -1,5 +1,5 @@
 import os,sys
-os.environ['PYOPENCL_CTX']='0:1'
+#os.environ['PYOPENCL_CTX']='0:1'
 #os.environ['PYOPENCL_COMPILER_OUTPUT'] = '0'
 import chroma.api as api
 api.use_opencl()
