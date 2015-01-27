@@ -138,8 +138,8 @@ class queueCheckNode(workQueue):
         end_queue = time.time()
 
         print "CheckNode Queue returns. ",end_queue-start_queue," seconds"
-        print "(Current node, To Test)"
-        node_states = zip( photon_current_node.get(), photon_tested_node.get() )
+        print "(Current node, To Test, result)"
+        node_states = zip( photon_current_node.get(), photon_tested_node.get(), photon_last_result.get() )
         for x in xrange(0,len(node_states), 10):
             y = x+10
             if y>len(node_states):
@@ -206,7 +206,7 @@ class queueCheckNode(workQueue):
         node_front_start = ga.empty( 1, dtype=np.int32 )
         node_front_end = ga.empty( 1, dtype=np.int32 )
         
-        max_loops = 30
+        max_loops = 3000
 
         if len(gpugeo.extra_nodes)>1:
             raise RuntimeError('did not plan for there to be a node split.')
@@ -245,28 +245,28 @@ class queueCheckNode(workQueue):
 
         print "CheckNode Queue returns. ",end_queue-start_queue," seconds"
         print "(Current node, To Test)"
-        node_states = zip( photon_current_node.get(), photon_tested_node.get() )
+        node_states = zip( photon_current_node.get(), photon_tested_node.get(), photon_last_result.get() )
         for x in xrange(0,len(node_states), 10):
             y = x+10
             if y>len(node_states):
                 y = len(node_states)
             print x,": ",node_states[x:y]
 
-        print "LAST RESULT:"
-        print photon_last_result.get()
+        #print "LAST RESULT:"
+        #print photon_last_result.get()
 
         print "PHOTON QUEUE"
         photon_queue = queue_photon_index.get()
-        for x in xrange(0,len(photon_queue), 32):
-            y = x+32
+        for x in xrange(0,len(photon_queue), 10):
+            y = x+10
             if y>len(photon_queue):
                 y = len(photon_queue)
             print x,": ",photon_queue[x:y]
 
         print "QUEUE SLOT FLAGS"
         slot_flags = queue_slot_flag.get()
-        for x in xrange(0,len(slot_flags), 32):
-            y = x+32
+        for x in xrange(0,len(slot_flags), 10):
+            y = x+10
             if y>len(slot_flags):
                 y = len(slot_flags)
             print x,": ",slot_flags[x:y]

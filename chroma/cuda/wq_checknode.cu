@@ -142,6 +142,8 @@ void checknode( const int max_loops,
       }
       else {
 	// hard scenario, we can't load them all in. 
+
+	// fancy option
 	// thread zero could keep pushing and popping photons until it collects enough work items
 	//requestnode_max = requestnode_min+max_nodes_can_store;
 	/* for (int i=0; i<workgroup_size; i++) { */
@@ -164,14 +166,12 @@ void checknode( const int max_loops,
         /*       pop_pos = 0; */
 	/*   } */
 	/* } */
-	
-	queue_photon_index[ pop_pos ] = -999;
-	bail = true;
+
+	// cave man option
+	// pull in what we need, but let other threads go to global memory...	
 	transfer_nodes = true;
 	nodefront_min_index = requestnode_min;
-	nodefront_max_index = requestnode_max;
-	*out_wavefront_start = nodefront_min_index;
-	*out_wavefront_end   = nodefront_max_index;
+	nodefront_max_index = requestnode_min+max_nodes_can_store;
       }	  
     } //end of thread-0
 
@@ -210,7 +210,11 @@ void checknode( const int max_loops,
 
       // get and unpack node
       Node node_struct;
-      uint4 workitem_node = workgroup_nodes[ local_test_nodeid ]; // get the tested node
+      uint4 workitem_node;
+      if ( local_test_nodeid<max_nodes_can_store )
+	workitem_node = workgroup_nodes[ local_test_nodeid ]; // get the tested node
+      else
+	workitem_node = nodes[ workgroup_tested_node[ localid ] ]; // non-localized, warped global access :(
       uint3 lower_int = make_uint3(workitem_node.x & 0xFFFF, workitem_node.y & 0xFFFF, workitem_node.z & 0xFFFF);
       uint3 upper_int = make_uint3(workitem_node.x >> 16, workitem_node.y >> 16, workitem_node.z >> 16);
       float3 flower = make_float3( lower_int.x, lower_int.y, lower_int.z );
@@ -219,33 +223,50 @@ void checknode( const int max_loops,
       node_struct.upper = world_origin + fupper * world_scale;
       node_struct.child = workitem_node.w & ~NCHILD_MASK;
       node_struct.nchild = workitem_node.w >> CHILD_BITS;
-
+      
       int intersects = intersect_internal_node( photon_pos, photon_dir, node_struct );
       last_result[ workgroup_photons[ localid ] ] = intersects;
-
+      
       if ( intersects ) {
 	// passes. update current node to test node.  set test node as first daughter of new node
-	uint next_daughter = workgroup_daughter[ local_test_nodeid ];
+	uint next_daughter;
+	if ( local_test_nodeid<max_nodes_can_store )
+	  next_daughter = workgroup_daughter[ local_test_nodeid ];
+	else
+	  next_daughter = node_first_daughter[ workgroup_tested_node[ localid ] ];
 	// store next nodes in local space first (later we will push the info into global memory
 	workgroup_current_node[ localid ] =  workgroup_tested_node[ localid ];
 	workgroup_tested_node[ localid ] = next_daughter;
       }
       else {
 	// does not pass.  check sibling of tested node.
-	workgroup_tested_node[ localid ] = workgroup_sibling[ local_test_nodeid ];
+	uint sibling;
+	uint aunt;
+	if ( local_test_nodeid<max_nodes_can_store ) {
+	  sibling = workgroup_sibling[ local_test_nodeid ];
+	  aunt    = workgroup_aunt[ local_test_nodeid ];
+	}
+	else {
+	  sibling = node_sibling[ workgroup_tested_node[ localid ] ];
+	  aunt    = node_aunt[ workgroup_tested_node[ localid ] ];
+	}
+	// current node is unchanged
+	workgroup_tested_node[ localid ] = sibling;
 	if ( workgroup_tested_node[ localid ]==0 )
-	  workgroup_tested_node[ localid ] = workgroup_aunt[ local_test_nodeid ];
- 	//else
-	//  workgroup_tested_node[ localid ] = workgroup_aunt[ localid ];
+	  workgroup_tested_node[ localid ] = aunt;
       }
-
+      
       __syncthreads();
-
+      
       // Now thread 0 pushes threads to end of queue for next step, if not a leaf node
       if ( localid==0 ) {
 	// check each thread. if !leaf or !non-aunt, push to end of work queue
 	for (int i=0; i<workgroup_size; i++) {
-	  uint nchild = workgroup_nodes[ workgroup_tested_node[ i ]-nodefront_min_index ].w >> CHILD_BITS;
+	  uint nchild = 0;
+	  if ( workgroup_current_node[ i ]>=nodefront_min_index && workgroup_current_node[ i ]<nodefront_max_index )
+	    nchild = workgroup_nodes[ workgroup_current_node[ i ]-nodefront_min_index ].w >> CHILD_BITS;
+	  else
+	    nchild = nodes[ workgroup_current_node[ i ] ].w >> CHILD_BITS; // outside node-front, so have to go to global memory
 	  if ( nchild>0 ) {
 	    // internal node
 	    queue_photon_index[ push_pos ] = workgroup_photons[ i ];
@@ -253,6 +274,10 @@ void checknode( const int max_loops,
 	    push_pos += 1;
 	    if ( push_pos>=(uint)queue_size )
 	      push_pos = 0;
+	  }
+	  else {
+	    
+	    last_result[ workgroup_photons[ i ] ] = 2; //leaf node
 	  }
 	  // push to global: atomic to prevent competition with other compute units
 	  atomicExch( current_node + workgroup_photons[ i ], workgroup_current_node[ i ] );
