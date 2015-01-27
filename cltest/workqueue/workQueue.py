@@ -19,7 +19,13 @@ class workQueue(object):
             self.work_item_dims  = self.device.get_info( cl.device_info.MAX_WORK_ITEM_DIMENSIONS )
             self.max_compute_units = self.device.get_info( cl.device_info.MAX_COMPUTE_UNITS )
         else:
-            raise RuntimeError('oops')
+            self.device = context.get_device()
+            self.shared_mem_size = self.device.max_shared_memory_per_block
+            self.work_group_size = self.device.max_threads_per_block
+            self.work_item_sizes = self.device.max_block_dim_x
+            self.work_item_dimes = 3
+            self.max_compute_units = self.device.multiprocessor_count
+            
     def print_dev_info(self):
         print self.device, self.shared_mem_size, self.work_group_size, self.work_group_size, self.max_compute_units
 

@@ -115,9 +115,11 @@ class GPUGeometry(object):
         if api.is_gpu_api_cuda():
             self.world_origin = ga.vec.make_float3(*geometry.bvh.world_coords.world_origin)
         elif api.is_gpu_api_opencl():
-            self.world_origin = geometry.bvh.world_coords.world_origin
-            self.world_origin_gpu = ga.to_device( cl_queue, self.world_origin )
-            print type(self.world_origin),self.world_origin
+            self.world_origin = ga.vec.make_float3(*geometry.bvh.world_coords.world_origin)
+            #self.world_origin = geometry.bvh.world_coords.world_origin
+            #self.world_origin_gpu = ga.to_device( cl_queue, self.world_origin, dtype=ga.vec.float3 )
+            self.world_origin_gpu = self.world_origin
+            print type(self.world_origin),self.world_origin, type(self.world_origin_gpu)
         self.world_scale = np.float32(geometry.bvh.world_coords.world_scale)
 
         # Load material and surface indices into 8-bit codes

@@ -1,35 +1,48 @@
-//-*-c-*-
+//-*-c++-*-
 #include "geometry_types.h"
 #include "wq_intersect_bvh.h"
 
-__kernel void checknode( const int max_loops, 
-			 // Photon info [index by photon id]
-			 __global float3 *positions, __global float3 *directions, __global uint* current_node, __global uint* test_node, __global int* last_result,
-			 // Geometry    [indexed by node id]
-			 const int nnodes, __global uint4* nodes, __global uint* node_parent, __global uint* node_first_daughter, __global uint* node_sibling, __global uint* node_aunt,
-			 const float3 world_origin, const float world_scale,
-			 // work queue  [indexed slot]
-			 const int queue_size, __global int* queue_photon_index, __global int* queue_slot_flag, const int first_empty_slot,
-			 // workgroup variables [indexed by local id]
-			 const int workgroup_size, __local int* workgroup_photons, __local int* workgroup_current_node, __local int* workgroup_tested_node,
-			 const int max_nodes_can_store, __local uint4* workgroup_nodes, __local uint* workgroup_daughter, __local uint* workgroup_sibling, __local uint* workgroup_aunt,
-			 const int loaded_node_start_index, const int loaded_node_end_index, __global int* out_wavefront_start, __global int* out_wavefront_end
-			 ) {
-  int localid = get_local_id(0);
-  int groupid = get_group_id(0);
+extern "C"
+{
 
-  __local uint pop_pos;
-  __local uint push_pos;
-  __local uint nodefront_min_index;
-  __local uint nodefront_max_index;
-  __local uint requestnode_min;
-  __local uint requestnode_max;
-  __local bool transfer_nodes;
-  __local bool bail;
-  __local uint iloop;
+__global__ 
+void checknode( const int max_loops, 
+		// Photon info [index by photon id]
+		float3 *positions, float3 *directions, uint* current_node, uint* test_node, int* last_result,
+		// Geometry    [indexed by node id]
+		const int nnodes, uint4* nodes, uint* node_parent, uint* node_first_daughter, uint* node_sibling, uint* node_aunt,
+		const float3 world_origin, const float world_scale,
+		// work queue  [indexed slot]
+		const int queue_size, int* queue_photon_index, int* queue_slot_flag, const int first_empty_slot,
+		// workgroup variables [indexed by local id]
+		const int workgroup_size, const int max_nodes_can_store, 
+		const int loaded_node_start_index, const int loaded_node_end_index, int* out_wavefront_start, int* out_wavefront_end
+		) {
+  int localid = threadIdx.x;
+  //int groupid = blockIdx.x;
+
+  __shared__ uint pop_pos;
+  __shared__ uint push_pos;
+  __shared__ uint nodefront_min_index;
+  __shared__ uint nodefront_max_index;
+  __shared__ uint requestnode_min;
+  __shared__ uint requestnode_max;
+  __shared__ bool transfer_nodes;
+  __shared__ bool bail;
+  __shared__ uint iloop;
+
+  extern __shared__ uint shared_mem_block[];
+  uint4* workgroup_nodes   = (uint4*)&shared_mem_block[0];
+  uint* workgroup_daughter = &shared_mem_block[4*max_nodes_can_store];
+  uint* workgroup_sibling  = &shared_mem_block[5*max_nodes_can_store];
+  uint* workgroup_aunt     = &shared_mem_block[6*max_nodes_can_store];
+  int* workgroup_photons        = (int*)&shared_mem_block[7*max_nodes_can_store];
+  int* workgroup_current_node   = (int*)&shared_mem_block[7*max_nodes_can_store + workgroup_size];
+  int* workgroup_tested_node    = (int*)&shared_mem_block[7*max_nodes_can_store + 2*workgroup_size];
+  
 
   // initialize local variables
-  if ( get_local_id(0) == 0) {
+  if ( localid == 0) {
     pop_pos = 0;
     push_pos = (uint)first_empty_slot;
     nodefront_min_index = loaded_node_start_index;
@@ -39,7 +52,8 @@ __kernel void checknode( const int max_loops,
     iloop = 0;
     bail = false;
   }
-  barrier( CLK_LOCAL_MEM_FENCE );
+
+  __syncthreads();
 
   // WORK QUEUE LOOP STARTS HERE
   int thread_iloop = iloop;
@@ -51,14 +65,14 @@ __kernel void checknode( const int max_loops,
     // all work items load requested photon and node
     queue_index = pop_pos + localid; // this can overrun!
     if ( queue_index < queue_size && queue_slot_flag[queue_index]==1 ) {
-      atomic_xchg( queue_slot_flag + queue_index,  0); // pop this slot
+      atomicExch( queue_slot_flag + queue_index,  0); // pop this slot
       workgroup_photons[ localid ]       = queue_photon_index[ queue_index ]; // queue needs to be filled by cpu before launching kernel
       queue_photon_index[ queue_index ] = -1;
       workgroup_current_node[ localid ]  = current_node[ workgroup_photons[ localid ] ];
       workgroup_tested_node[ localid ]   = test_node[ workgroup_photons[ localid ] ];
     }
     else if ( queue_index>=queue_size && queue_slot_flag[queue_index-queue_size]==1) {
-      atomic_xchg( queue_slot_flag + queue_index-queue_size,  0); // pop this slot
+      atomicExch( queue_slot_flag + queue_index-queue_size,  0); // pop this slot
       workgroup_photons[ localid ]       = queue_photon_index[ queue_index-queue_size ]; // queue needs to be filled by cpu before launching kernel
       queue_photon_index[ queue_index-queue_size ] = -1;
       workgroup_current_node[ localid ]  = current_node[ workgroup_photons[ localid ] ];
@@ -70,10 +84,10 @@ __kernel void checknode( const int max_loops,
       workgroup_tested_node[ localid ] = -1;
     }
 
-    barrier( CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE );
+    __syncthreads();
 
     // pop last 16
-    if ( get_local_id(0) == 0) {
+    if ( localid == 0) {
       int next_pos = pop_pos + (uint)workgroup_size;
       transfer_nodes = false;
       // move queue position
@@ -82,7 +96,7 @@ __kernel void checknode( const int max_loops,
       pop_pos = next_pos;
     }
 
-    barrier( CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE );
+    __syncthreads();
 
     /* // ------------------------------------------------------ */
     /* // for debug (checks pop above) */
@@ -92,7 +106,7 @@ __kernel void checknode( const int max_loops,
     /*   // push back onto queue */
     /*   for (int i=0; i<workgroup_size; i++) { */
     /* 	queue_photon_index[ push_pos ] = workgroup_photons[ i ]; */
-    /* 	atomic_xchg( queue_slot_flag+push_pos,  1); */
+    /* 	atomicExch( queue_slot_flag+push_pos,  1); */
     /* 	push_pos += 1; */
     /* 	if ( push_pos>=(uint)queue_size ) */
     /* 	  push_pos = 0; */
@@ -104,7 +118,7 @@ __kernel void checknode( const int max_loops,
     /* // ------------------------------------------------------ */
 
     // thread zero, polls range of nodes to get
-    if ( get_local_id(0) == 0) {
+    if ( localid == 0) {
 
       requestnode_min = workgroup_tested_node[ 0 ];
       for (int i=0; i<workgroup_size; i++) {
@@ -134,7 +148,7 @@ __kernel void checknode( const int max_loops,
 	/*   if ( workgroup_tested_node[ i ]>requestnode_max ) { */
 	/*     // push photon item back onto queue */
 	/*     queue_photon_index[ push_pos ] = workgroup_photons[ i ]; */
-	/*     atomic_xchg( queue_slot_flag+push_pos,  1); */
+	/*     atomicExch( queue_slot_flag+push_pos,  1); */
 	/*     push_pos += 1; */
         /*     if ( push_pos>=(uint)queue_size ) */
         /*       push_pos = 0; */
@@ -143,7 +157,7 @@ __kernel void checknode( const int max_loops,
 	/*     workgroup_photons[ i ] = queue_photon_index[ pop_pos ]; */
 	/*     workgroup_current_node[ i ] = current_node[ workgroup_photons[ i ] ]; */
 	/*     workgroup_tested_node[ localid ] = test_node[ workgroup_photons[ i ] ]; */
-	/*     atomic_xchg( queue_slot_flag+pop_pos,  0); */
+	/*     atomicExch( queue_slot_flag+pop_pos,  0); */
 	/*     queue_photon_index[ pop_pos ] = -2; */
 	/*     pop_pos += 1; */
 	/*     if ( pop_pos>=(uint)queue_size ) */
@@ -166,7 +180,7 @@ __kernel void checknode( const int max_loops,
     if ( (nodefront_max_index-nodefront_min_index)%workgroup_size!=0 )
       num_blocks++;
 
-    barrier( CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE );    
+    __syncthreads();
     if ( bail )
       break;
 
@@ -182,7 +196,7 @@ __kernel void checknode( const int max_loops,
 	}
       }
     }
-    barrier( CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE );
+    __syncthreads();
 
     // -- Now we finally get to testing intersections --
     
@@ -192,22 +206,21 @@ __kernel void checknode( const int max_loops,
       float3 photon_pos = positions[ workgroup_photons[ localid ] ];  // global access
       float3 photon_dir = directions[ workgroup_photons[ localid ] ]; // global access
       uint local_test_nodeid    = workgroup_tested_node[ localid ]  - nodefront_min_index; // zero index
-      uint local_current_nodeid = workgroup_current_node[ localid ] - nodefront_min_index; // zero index
+      //uint local_current_nodeid = workgroup_current_node[ localid ] - nodefront_min_index; // zero index
 
       // get and unpack node
       Node node_struct;
       uint4 workitem_node = workgroup_nodes[ local_test_nodeid ]; // get the tested node
-      uint3 lower_int = (uint3)(workitem_node.x & 0xFFFF, workitem_node.y & 0xFFFF, workitem_node.z & 0xFFFF);
-      uint3 upper_int = (uint3)(workitem_node.x >> 16, workitem_node.y >> 16, workitem_node.z >> 16);
-      int get_aligned_axis( const float3 *direction );
-      float3 flower = (float3) ( lower_int.x, lower_int.y, lower_int.z );
-      float3 fupper = (float3) ( upper_int.x, upper_int.y, upper_int.z );
+      uint3 lower_int = make_uint3(workitem_node.x & 0xFFFF, workitem_node.y & 0xFFFF, workitem_node.z & 0xFFFF);
+      uint3 upper_int = make_uint3(workitem_node.x >> 16, workitem_node.y >> 16, workitem_node.z >> 16);
+      float3 flower = make_float3( lower_int.x, lower_int.y, lower_int.z );
+      float3 fupper = make_float3( upper_int.x, upper_int.y, upper_int.z );
       node_struct.lower = world_origin + flower * world_scale;
       node_struct.upper = world_origin + fupper * world_scale;
       node_struct.child = workitem_node.w & ~NCHILD_MASK;
       node_struct.nchild = workitem_node.w >> CHILD_BITS;
 
-      int intersects = intersect_internal_node( &photon_pos, &photon_dir, &node_struct );
+      int intersects = intersect_internal_node( photon_pos, photon_dir, node_struct );
       last_result[ workgroup_photons[ localid ] ] = intersects;
 
       if ( intersects ) {
@@ -226,7 +239,7 @@ __kernel void checknode( const int max_loops,
 	//  workgroup_tested_node[ localid ] = workgroup_aunt[ localid ];
       }
 
-      barrier( CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE );
+      __syncthreads();
 
       // Now thread 0 pushes threads to end of queue for next step, if not a leaf node
       if ( localid==0 ) {
@@ -236,14 +249,14 @@ __kernel void checknode( const int max_loops,
 	  if ( nchild>0 ) {
 	    // internal node
 	    queue_photon_index[ push_pos ] = workgroup_photons[ i ];
-	    atomic_xchg( queue_slot_flag+push_pos,  1);
+	    atomicExch( queue_slot_flag+push_pos,  1);
 	    push_pos += 1;
 	    if ( push_pos>=(uint)queue_size )
 	      push_pos = 0;
 	  }
 	  // push to global: atomic to prevent competition with other compute units
-	  atomic_xchg( current_node + workgroup_photons[ i ], workgroup_current_node[ i ] );
-	  atomic_xchg( test_node + workgroup_photons[ i ],    workgroup_tested_node[ i ] );
+	  atomicExch( current_node + workgroup_photons[ i ], workgroup_current_node[ i ] );
+	  atomicExch( test_node + workgroup_photons[ i ],    workgroup_tested_node[ i ] );
 
 	}
       }
@@ -255,13 +268,13 @@ __kernel void checknode( const int max_loops,
 /*       //current_node[ workgroup_photons[ localid ]  ] = local_test_nodeid; */
 //      current_node[ workgroup_photons[ localid ]  ] = (uint)intersects;
     } // if valid photon
-    
-    barrier( CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE );
+
+    __syncthreads();    
 
     if ( localid==0 ) {
       iloop += 1;
     }
-    barrier( CLK_LOCAL_MEM_FENCE );
+    __syncthreads();
     thread_iloop = iloop;
     //barrier( CLK_LOCAL_MEM_FENCE );
   } // end of while loop
@@ -274,3 +287,5 @@ __kernel void checknode( const int max_loops,
   return;
 
 }
+
+}// end of extern C

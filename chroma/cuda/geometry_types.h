@@ -72,5 +72,15 @@ struct Geometry
     int nprimary_nodes;
 };
 
+struct NodeDSAR
+{
+  unsigned int* node_index;
+  unsigned int* parent_index;
+  unsigned int* aunt_index;
+  unsigned int* sibling_index;
+  unsigned int* first_daughter_index;
+  unsigned int* ndaughters;
+};
+
 #endif
 
