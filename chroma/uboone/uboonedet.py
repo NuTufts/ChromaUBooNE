@@ -6,13 +6,14 @@ from chroma.g4daenode.g4daenode import DAENode
 import chroma.uboone.surfaces as uboonesurfaces
 from chroma.loader import load_bvh
 from chroma.bvh.NodeDSAR import NodeDSARtree
+import time
 
 # Geometry class representing the MicroBooNE geometry
 
 class ubooneDet( Detector ):
     def __init__(self, daefile, acrylic_detect=True, acrylic_wls=False,
                  bvh_name="uboone_bvh_default", detector_volumes=[],
-                 auto_build_bvh=True, read_bvh_cache=True,
+                 auto_build_bvh=True, read_bvh_cache=True, calculate_ndsar_tree=True,
                  update_bvh_cache=True, cache_dir=None, bvh_method='grid', bvh_target_degree='3',
                  cuda_device=None, cl_device=None ):
 
@@ -95,8 +96,15 @@ class ubooneDet( Detector ):
                                 update_bvh_cache=update_bvh_cache,
                                 cache_dir=cache_dir, bvh_method=bvh_method, target_degree=bvh_target_degree,
                                 cuda_device=cuda_device, cl_device=cl_device)
-        self.node_dsar_tree = NodeDSARtree( self.bvh )
         self._setup_photodetectors()
+
+        if calculate_ndsar_tree:
+            print "Calculate node DSAR tree ...",
+            sndsar = time.time()
+            self.node_dsar_tree = NodeDSARtree( self.bvh )
+            endsar = time.time()
+            print " done ",endsar-sndsar," secs."
+
 
         # OK, we should be ready to go
     def _setup_photodetectors( self ):
