@@ -12,10 +12,10 @@ elif api.is_gpu_api_cuda():
 import numpy as np
 import time
 
-class queueCheckNode(workQueue):
+class queueCheckTriangle(workQueue):
 
     def __init__(self, context, assigned_workid):
-        super( queueCheckNode, self ).__init__( context )
+        super( queueCheckTriangle, self ).__init__( context )
         self.workid = assigned_workid
         # Make work queue
         
