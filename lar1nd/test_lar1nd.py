@@ -2,8 +2,8 @@ import os,sys
 from unittest_find import unittest
 import numpy as np
 import chroma.api as api
-#api.use_cuda()
-api.use_opencl()
+api.use_cuda()
+#api.use_opencl()
 from chroma.sim import Simulation
 from chroma.event import Photons
 import chroma.event as event
@@ -40,10 +40,12 @@ if has_root:
 
 class TestUbooneDetector(unittest.TestCase):
     def setUp(self):
-        self.geo = ubooneDet( "lar1nd_chroma.dae", detector_volumes=["vollightguidedetector"],
+        daefile = "lar1nd_lightguides_nowires_chroma.dae"
+        #daefile = "lar1nd_chroma.dae"
+        self.geo = ubooneDet( daefile, detector_volumes=["vollightguidedetector"],
                               acrylic_detect=True, acrylic_wls=False,
                               read_bvh_cache=True, cache_dir="./lar1nd_cache")
-        self.sim = Simulation(self.geo, geant4_processes=0, nthreads_per_block=1, max_blocks=100)
+        self.sim = Simulation(self.geo, geant4_processes=0, nthreads_per_block=256, max_blocks=1000)
 
     @unittest.skip('skipping testDet')
     def testDet(self):
@@ -70,7 +72,7 @@ class TestUbooneDetector(unittest.TestCase):
     def testPhotonBomb(self):
 
         # Run only one photon at a time
-        nphotons = 1000
+        nphotons = 10000000
         #nphotons = 7200000
 
         dphi = np.random.uniform(0,2.0*np.pi, nphotons)

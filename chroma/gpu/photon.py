@@ -172,7 +172,7 @@ class GPUPhotons(object):
             start_step = time.time()
             for first_photon, photons_this_round, blocks in \
                     chunk_iterator(nphotons, nthreads_per_block, max( int(adapt_factor*max_blocks), 1 )):
-                print nphotons, nthreads_per_block, max_blocks," : ",first_photon, photons_this_round, blocks, adapt_factor
+                #print nphotons, nthreads_per_block, max_blocks," : ",first_photon, photons_this_round, blocks, adapt_factor
                 start_chunk = time.time()
                 if api.is_gpu_api_cuda():
                     self.gpu_funcs.propagate(np.int32(first_photon), np.int32(photons_this_round), 
@@ -206,17 +206,17 @@ class GPUPhotons(object):
                                               g_times_l=False ).wait()
                 end_chunk = time.time()
                 chunk_time = end_chunk-start_chunk
-                print "chunk time: ",chunk_time
+                #print "chunk time: ",chunk_time
                 if chunk_time>2.5:
                     adapt_factor *= 0.5
             step += nsteps
             scatter_first = 0 # Only allow non-zero in first pass
             end_step = time.time()
-            print "step time: ",end_step-start_step
+            #print "step time: ",end_step-start_step
             
             if step < max_steps:
                 start_requeue = time.time()
-                print "reset photon queues"
+                #print "reset photon queues"
                 if api.is_gpu_api_cuda():
                     #temp = input_queue_gpu
                     #input_queue_gpu = output_queue_gpu
@@ -237,9 +237,9 @@ class GPUPhotons(object):
                     input_queue_gpu.set( temp_out[1:], queue=comqueue ) # set the input queue to have index of photons still need to be run
                     output_queue_gpu[:1].set( np.ones(shape=1,dtype=np.uint32), queue=comqueue ) # reset first instance to be one
                 end_requeue = time.time()
-                print "re-queue time: ",end_requeue-start_requeue
+                #print "re-queue time: ",end_requeue-start_requeue
 
-        print "flag check"
+
         end_flags = self.flags.get()
         end_flag = np.max(end_flags)
         if end_flag & (1 << 31):

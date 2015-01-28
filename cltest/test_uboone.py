@@ -1,6 +1,7 @@
 import os,sys
 #os.environ['PYOPENCL_CTX']='0:1'
 #os.environ['PYOPENCL_COMPILER_OUTPUT'] = '0'
+os.environ['CUDA_PROFILE'] = '1'
 import chroma.api as api
 #api.use_opencl()
 api.use_cuda()
@@ -25,7 +26,7 @@ class TestUbooneDetector(unittest.TestCase):
         self.geo = ubooneDet( "../gdml/microboone_nowires_chroma_simplified.dae", detector_volumes=["vol_PMT_AcrylicPlate"],
                               acrylic_detect=True, acrylic_wls=False,  
                               read_bvh_cache=True, cache_dir="./uboone_bvh_nowires")
-        self.sim = Simulation(self.geo, geant4_processes=0, nthreads_per_block=256, max_blocks=256)
+        self.sim = Simulation(self.geo, geant4_processes=0, nthreads_per_block=256, max_blocks=1024)
         self.origin = self.geo.bvh.world_coords.world_origin
 
 
@@ -57,11 +58,11 @@ class TestUbooneDetector(unittest.TestCase):
             ev.photons_end.dump_history()
             lht = ev.photons_end[0].last_hit_triangles
 
-    @unittest.skip('skipping testDet')
+    #@unittest.skip('skipping testDet')
     def testPhotonBomb(self):
 
         # Run only one photon at a time
-        nphotons = 1000000
+        nphotons = 32*10000
 
         dphi = np.random.uniform(0,2.0*np.pi, nphotons)
         dcos = np.random.uniform(-1.0, 1.0, nphotons)
@@ -93,6 +94,7 @@ class TestUbooneDetector(unittest.TestCase):
             print ev.channels.q
             print ev.channels.t
 
+    @unittest.skip('skipping testDet')
     def testWorkQueue(self):
 
         # Run only one photon at a time
@@ -120,8 +122,10 @@ class TestUbooneDetector(unittest.TestCase):
         photons = Photons(pos=pos, dir=dir, pol=pol, t=t, wavelengths=wavelengths)
 
         rq = RayQueue( self.sim.context )
+        rq.checknodes.print_dev_info()
         rq.simulate( photons, self.sim )
 
 if __name__ == "__main__":
+    import pycuda
     unittest.main()
-    
+    pycuda.driver.stop_profiler()
