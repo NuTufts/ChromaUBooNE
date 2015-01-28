@@ -273,60 +273,79 @@ void checknode( const int max_loops,
     int nodes_stored = nodefront_max_index-nodefront_min_index;
     if ( photon_index>=0 ) { // we ignore non-filled threads
 
-      // get photon information
-      float3 photon_pos = positions[ photon_index ];  // global access
-      float3 photon_dir = directions[ photon_index ]; // global access
-      uint test_nodeid = workgroup_tested_node[ localid ];
-      uint local_test_nodeid  = test_nodeid  - nodefront_min_index; // zero index
+      int steps = 0;
+      int maxsteps = 1000000;
+      int found_leaf = false;
+      while ( found_leaf==false && steps<maxsteps ) {
 
-      // get and unpack node
-      Node node_struct;
-      uint4 workitem_node;
-      if ( local_test_nodeid<nodes_stored )
-	workitem_node = workgroup_nodes[ local_test_nodeid ]; // get the tested node
-      else
-	workitem_node = nodes[ test_nodeid ]; // non-localized, warped global access :(
-      uint3 lower_int = make_uint3(workitem_node.x & 0xFFFF, workitem_node.y & 0xFFFF, workitem_node.z & 0xFFFF);
-      uint3 upper_int = make_uint3(workitem_node.x >> 16, workitem_node.y >> 16, workitem_node.z >> 16);
-      float3 flower = make_float3( lower_int.x, lower_int.y, lower_int.z );
-      float3 fupper = make_float3( upper_int.x, upper_int.y, upper_int.z );
-      node_struct.lower = world_origin + flower * world_scale;
-      node_struct.upper = world_origin + fupper * world_scale;
-      node_struct.child = workitem_node.w & ~NCHILD_MASK;
-      node_struct.nchild = workitem_node.w >> CHILD_BITS;
-      
-      int intersects = intersect_internal_node( photon_pos, photon_dir, node_struct );
-      last_result[ photon_index ] = intersects;
-      
-      if ( intersects ) {
-	// passes. update current node to test node.  set test node as first daughter of new node
-	uint next_daughter;
+	// get photon information
+	float3 photon_pos = positions[ photon_index ];  // global access
+	float3 photon_dir = directions[ photon_index ]; // global access
+	uint test_nodeid = workgroup_tested_node[ localid ];
+	uint local_test_nodeid  = test_nodeid  - nodefront_min_index; // zero index
+
+	// get and unpack node
+	Node node_struct;
+	uint4 workitem_node;
 	if ( local_test_nodeid<nodes_stored )
-	  next_daughter = workgroup_daughter[ local_test_nodeid ];
+	  workitem_node = workgroup_nodes[ local_test_nodeid ]; // get the tested node
 	else
-	  next_daughter = node_first_daughter[ test_nodeid ];
-	// store next nodes in local space first (later we will push the info into global memory
-	workgroup_current_node[ localid ] =  test_nodeid;
-	workgroup_tested_node[ localid ] = next_daughter;
-      }
-      else {
-	// does not pass.  check sibling of tested node.
-	uint sibling;
-	uint aunt;
-	if ( local_test_nodeid<nodes_stored ) {
-	  sibling = workgroup_sibling[ local_test_nodeid ];
-	  aunt    = workgroup_aunt[ local_test_nodeid ];
+	  workitem_node = nodes[ test_nodeid ]; // non-localized, warped global access :(
+	uint3 lower_int = make_uint3(workitem_node.x & 0xFFFF, workitem_node.y & 0xFFFF, workitem_node.z & 0xFFFF);
+	uint3 upper_int = make_uint3(workitem_node.x >> 16, workitem_node.y >> 16, workitem_node.z >> 16);
+	float3 flower = make_float3( lower_int.x, lower_int.y, lower_int.z );
+	float3 fupper = make_float3( upper_int.x, upper_int.y, upper_int.z );
+	node_struct.lower = world_origin + flower * world_scale;
+	node_struct.upper = world_origin + fupper * world_scale;
+	node_struct.child = workitem_node.w & ~NCHILD_MASK;
+	node_struct.nchild = workitem_node.w >> CHILD_BITS;
+      
+	int intersects = intersect_internal_node( photon_pos, photon_dir, node_struct );
+	last_result[ photon_index ] = intersects;
+      
+	if ( intersects ) {
+	  // passes. update current node to test node.  set test node as first daughter of new node
+	  uint next_daughter;
+	  if ( local_test_nodeid<nodes_stored )
+	    next_daughter = workgroup_daughter[ local_test_nodeid ];
+	  else
+	    next_daughter = node_first_daughter[ test_nodeid ];
+	  // store next nodes in local space first (later we will push the info into global memory
+	  workgroup_current_node[ localid ] =  test_nodeid;
+	  workgroup_tested_node[ localid ] = next_daughter;
 	}
 	else {
-	  sibling = node_sibling[ test_nodeid ];
-	  aunt    = node_aunt[ test_nodeid ];
+	  // does not pass.  check sibling of tested node.
+	  uint sibling;
+	  uint aunt;
+	  if ( local_test_nodeid<nodes_stored ) {
+	    sibling = workgroup_sibling[ local_test_nodeid ];
+	    aunt    = workgroup_aunt[ local_test_nodeid ];
+	  }
+	  else {
+	    sibling = node_sibling[ test_nodeid ];
+	    aunt    = node_aunt[ test_nodeid ];
+	  }
+	  // current node is unchanged
+	  if ( sibling>0 )
+	    workgroup_tested_node[ localid ] = sibling;
+	  else
+	    workgroup_tested_node[ localid ] = aunt;
 	}
-	// current node is unchanged
-	if ( sibling>0 )
-	  workgroup_tested_node[ localid ] = sibling;
+
+	// leaf check
+	uint nchild = 0;
+	if ( workgroup_current_node[ localid ]>=nodefront_min_index && workgroup_current_node[ localid ]<nodefront_max_index )
+	  nchild = workgroup_nodes[ workgroup_current_node[ localid ]-nodefront_min_index ].w >> CHILD_BITS; // we can get node info from shared memory
 	else
-	  workgroup_tested_node[ localid ] = aunt;
-      }
+	  nchild = nodes[ workgroup_current_node[ localid ] ].w >> CHILD_BITS; // outside node-front, so have to go to global memory
+	if ( nchild==0 ) {
+	  found_leaf = true;
+	  last_result[ photon_index ] = 2; //leaf node
+	  //break; // exit loop
+	}
+	steps += 1;
+      }//en of whie loop
     }// if valid photon
       
     __syncthreads();
@@ -339,18 +358,11 @@ void checknode( const int max_loops,
 	if ( thread_photon_index>=0 ) {
 	  
 	  // leaf check: nchild==0
-	  uint nchild = 0;
-	  if ( workgroup_current_node[ i ]>=nodefront_min_index && workgroup_current_node[ i ]<nodefront_max_index )
-	    nchild = workgroup_nodes[ workgroup_current_node[ i ]-nodefront_min_index ].w >> CHILD_BITS; // we can get node info from shared memory
-	  else
-	    nchild = nodes[ workgroup_current_node[ i ] ].w >> CHILD_BITS; // outside node-front, so have to go to global memory
-	  if ( nchild>0 ) {
-	    // daughter is an internal node. push photon back onto the queue
+	  if ( last_result[ thread_photon_index ]!=2 ) {
+	  // daughter is an internal node. push photon back onto the queue
 	    push_onto_queue( thread_photon_index, push_pos, push_lt_pop, queue_photon_index, queue_slot_flag, queue_size );
 	  }
-	  else {
-	    last_result[ thread_photon_index ] = 2; //leaf node
-	  }
+
 	  // push to global: atomic to prevent competition with other compute units
 	  atomicExch( current_node + workgroup_photons[ i ], workgroup_current_node[ i ] );
 	  atomicExch( test_node + workgroup_photons[ i ],    workgroup_tested_node[ i ] );

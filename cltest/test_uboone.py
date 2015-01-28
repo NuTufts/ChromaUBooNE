@@ -22,8 +22,9 @@ except:
 
 class TestUbooneDetector(unittest.TestCase):
     def setUp(self):
-        #self.geo = ubooneDet( "../gdml/microboone_nowires_chroma_simplified.dae",  acrylic_detect=False, acrylic_wls=True )
-        self.geo = ubooneDet( "../gdml/microboone_nowires_chroma_simplified.dae", detector_volumes=["vol_PMT_AcrylicPlate"],
+        daefile = "../gdml/microboone_nowires_chroma_simplified.dae"
+        #self.geo = ubooneDet( daefile,  acrylic_detect=False, acrylic_wls=True )
+        self.geo = ubooneDet( daefile, detector_volumes=["vol_PMT_AcrylicPlate"],
                               acrylic_detect=True, acrylic_wls=False,  
                               read_bvh_cache=True, cache_dir="./uboone_bvh_nowires")
         self.sim = Simulation(self.geo, geant4_processes=0, nthreads_per_block=256, max_blocks=1024)
@@ -58,11 +59,11 @@ class TestUbooneDetector(unittest.TestCase):
             ev.photons_end.dump_history()
             lht = ev.photons_end[0].last_hit_triangles
 
-    #@unittest.skip('skipping testDet')
+    @unittest.skip('skipping testDet')
     def testPhotonBomb(self):
 
         # Run only one photon at a time
-        nphotons = 32*10000
+        nphotons = 32*12
 
         dphi = np.random.uniform(0,2.0*np.pi, nphotons)
         dcos = np.random.uniform(-1.0, 1.0, nphotons)
@@ -94,7 +95,7 @@ class TestUbooneDetector(unittest.TestCase):
             print ev.channels.q
             print ev.channels.t
 
-    @unittest.skip('skipping testDet')
+    #@unittest.skip('skipping testDet')
     def testWorkQueue(self):
 
         # Run only one photon at a time

@@ -161,6 +161,7 @@ class GPUPhotons(object):
             iuse_weights = 0
 
         adapt_factor = 1.0
+        start_prop = time.time()
         while step < max_steps:
             # Just finish the rest of the steps if the # of photons is low
             #if nphotons < nthreads_per_block * 16 * 8 or use_weights:
@@ -238,8 +239,8 @@ class GPUPhotons(object):
                     output_queue_gpu[:1].set( np.ones(shape=1,dtype=np.uint32), queue=comqueue ) # reset first instance to be one
                 end_requeue = time.time()
                 #print "re-queue time: ",end_requeue-start_requeue
-
-
+        end_prop = time.time()
+        print "propagation time: ",end_prop-start_prop," secs"
         end_flags = self.flags.get()
         end_flag = np.max(end_flags)
         if end_flag & (1 << 31):

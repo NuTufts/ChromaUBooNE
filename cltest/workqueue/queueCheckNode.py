@@ -206,7 +206,7 @@ class queueCheckNode(workQueue):
         node_front_start = ga.empty( 1, dtype=np.int32 )
         node_front_end = ga.empty( 1, dtype=np.int32 )
         
-        max_loops = 3000
+        max_loops = 1000
 
         if len(gpugeo.extra_nodes)>1:
             raise RuntimeError('did not plan for there to be a node split.')
