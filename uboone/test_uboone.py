@@ -3,8 +3,8 @@ import os,sys
 #os.environ['PYOPENCL_COMPILER_OUTPUT'] = '0'
 #os.environ['CUDA_PROFILE'] = '1'
 import chroma.api as api
-#api.use_opencl()
-api.use_cuda()
+api.use_opencl()
+#api.use_cuda()
 from unittest_find import unittest
 import numpy as np
 from chroma.sim import Simulation

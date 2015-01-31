@@ -183,14 +183,14 @@ class GPUPhotons(object):
                                              gpu_geometry.gpudata, block=(nthreads_per_block,1,1), grid=(blocks, 1))
                     cuda.Context.get_current().synchronize()
                 elif api.is_gpu_api_opencl():
-                    self.gpu_funcs.propagate( comqueue, (photons_this_round,1,1), (nthreads_per_block, 1,1),
+                    self.gpu_funcs.propagate( comqueue, (photons_this_round,1,1), None,
                                               np.int32(first_photon), np.int32(photons_this_round),
                                               input_queue_gpu.data, output_queue_gpu.data,
                                               rng_states.data, 
                                               self.pos.data, self.dir.data, self.wavelengths.data, self.pol.data, self.t.data, 
                                               self.flags.data, self.last_hit_triangles.data, self.weights.data,
                                               np.int32(nsteps), np.int32(iuse_weights), np.int32(scatter_first),
-                                              gpu_geometry.world_scale, gpu_geometry.world_origin_gpu.data,  np.int32(len(gpu_geometry.nodes)),
+                                              gpu_geometry.world_scale, gpu_geometry.world_origin.data,  np.int32(len(gpu_geometry.nodes)),
                                               gpu_geometry.material_data['n'], gpu_geometry.material_data['step'], gpu_geometry.material_data["wavelength0"],
                                               gpu_geometry.vertices.data, gpu_geometry.triangles.data,
                                               gpu_geometry.material_codes.data, gpu_geometry.colors.data,
@@ -204,7 +204,7 @@ class GPUPhotons(object):
                                               gpu_geometry.surface_data['reflect_diffuse'].data, gpu_geometry.surface_data['reflect_specular'].data,
                                               gpu_geometry.surface_data['eta'].data, gpu_geometry.surface_data['k'].data, gpu_geometry.surface_data['reemission_cdf'].data,
                                               gpu_geometry.surface_data['model'].data, gpu_geometry.surface_data['transmissive'].data, gpu_geometry.surface_data['thickness'].data,
-                                              g_times_l=False ).wait()
+                                              g_times_l=True ).wait()
                 end_chunk = time.time()
                 chunk_time = end_chunk-start_chunk
                 #print "chunk time: ",chunk_time
