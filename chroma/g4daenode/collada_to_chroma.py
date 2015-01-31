@@ -238,11 +238,12 @@ class ColladaToChroma(object):
     secs = {}
     surface_props = "detect absorb reemit reflect_diffuse reflect_specular eta k reemission_cdf".split()
 
-    def __init__(self, nodecls, bvh=False):
+    def __init__(self, nodecls, bvh=False, dump_node_info=False):
         """
         :param nodecls: typically DAENode
         """ 
         log.debug("ColladaToChroma")
+        self.dump_node_info = dump_node_info # for debug
         self.nodecls = nodecls
         self.bvh = bvh
         #self.chroma_geometry = Geometry(detector_material=None)    # bialkali ?
@@ -826,7 +827,8 @@ class ColladaToChroma(object):
             surfacename = "NOT SPECIFIED"
         else:
             surfacename = surface.name
-        #print "[NODE %05d:%s]"%(node.index,node.lv.id)," NTriangles=%d OuterMat=%s InnerMat=%s Surface=%s"%(len(mesh.triangles), material2.name, material1.name, surfacename)
+        if self.dump_node_info:
+            print "[NODE %05d:%s]"%(node.index,node.lv.id)," NTriangles=%d OuterMat=%s InnerMat=%s Surface=%s"%(len(mesh.triangles), material2.name, material1.name, surfacename)
 
         color = 0x33ffffff 
 

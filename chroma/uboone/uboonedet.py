@@ -13,9 +13,9 @@ import time
 class ubooneDet( Detector ):
     def __init__(self, daefile, acrylic_detect=True, acrylic_wls=False,
                  bvh_name="uboone_bvh_default", detector_volumes=[],
-                 auto_build_bvh=True, read_bvh_cache=True, calculate_ndsar_tree=True,
+                 auto_build_bvh=True, read_bvh_cache=True, calculate_ndsar_tree=False,
                  update_bvh_cache=True, cache_dir=None, bvh_method='grid', bvh_target_degree='3',
-                 cuda_device=None, cl_device=None ):
+                 cuda_device=None, cl_device=None, dump_node_info=False ):
 
         if acrylic_detect and acrylic_wls:
             raise ValueError('cannot have acrylic act as both detector and wavelength shifter')
@@ -34,7 +34,7 @@ class ubooneDet( Detector ):
 
         # We use g4dae tools to create geometry with mesh whose triangles have materials assigned to them
         DAENode.parse( daefile, sens_mats=[] )
-        self.collada2chroma = ColladaToChroma(DAENode)
+        self.collada2chroma = ColladaToChroma( DAENode, dump_node_info=dump_node_info )
         geom = self.collada2chroma.convert_geometry()
         
         # copy member objects (maybe use copy module instead?)

@@ -48,6 +48,7 @@ class NodeDSARtree:
         self.layer_bounds = bvh.layer_bounds
         self.nodes = bvh.nodes
         self.dsartree = {}
+        self.layer_list = {}
 
         self._make_tree( self.layer_bounds, self.nodes )
         self._make_arrays()
@@ -59,7 +60,7 @@ class NodeDSARtree:
         # (3) assign them their sibling, first daughter and aunt number
         # (4) Go to next layer
 
-        parent_node_dict = None # packed dict[child] = {parent:index, aunt:index )
+        parent_node_dict = {} # packed dict[child] = {parent:index, aunt:index )
         for ilayer in range(0,len(layer_bounds)):
             # Get layer nodes
             layer_start = layer_bounds[ilayer]
@@ -69,8 +70,8 @@ class NodeDSARtree:
                 layer_end = len(nodes)
             packed_layer_nodes = nodes[layer_start:layer_end]
             layer_nodes = unpack_nodes( packed_layer_nodes )
-            #print "========================================"
-            #print "LAYER %d: [%d, %d] (Total nodes: %s)"  % ( ilayer, layer_start, layer_end, len(nodes) )
+            print "========================================"
+            print "LAYER %d: [%d, %d] (Total nodes: %s)"  % ( ilayer, layer_start, layer_end, len(nodes) )
             
             # Loop over nodes
             for inode, node in enumerate(layer_nodes):
@@ -124,10 +125,10 @@ class NodeDSARtree:
                 # store in tree    
                 self.dsartree[node_index] = nodedsar
 
-            parent_node_dict = self._make_parent_node_dict( layer_nodes, layer_start, layer_end, nodes )
+            self._make_parent_node_dict( parent_node_dict, layer_nodes, layer_start, layer_end, nodes, self.dsartree )
 
             #print "Parent Dict for next layer: ",parent_node_dict
-            #self.printlayer( layer_start, layer_end )
+            self.printlayer( layer_start, layer_end )
 
     def _make_arrays(self):
         nnodes = len(self.dsartree)
@@ -145,8 +146,8 @@ class NodeDSARtree:
             self.sibling[n] = self.dsartree[n].sibling
             self.aunt[n] = self.dsartree[n].aunt
 
-    def _make_parent_node_dict(self, layer_nodes, layer_start, layer_end, nodes ):
-        parent_node_dict = {}
+    def _make_parent_node_dict(self, parent_node_dict, layer_nodes, layer_start, layer_end, nodes, dsartree ):
+
         for inode, node in enumerate(layer_nodes):
             node_index    = np.uint32(layer_start + inode)
             aunt_index    = node_index + np.uint32(1)
@@ -156,7 +157,8 @@ class NodeDSARtree:
             if nchild>0:
                 # daughter is internal node
                 for daughter_index in xrange(node['child'],node['child']+node['nchild']):
-                    parent_node_dict[ daughter_index ] = {'parent':node_index, 'aunt':aunt_index}
+                    if daughter_index not in parent_node_dict:
+                        parent_node_dict[ daughter_index ] = {'parent':node_index, 'aunt':aunt_index}
             elif nchild==0:
                 pass
         return parent_node_dict

@@ -1,7 +1,7 @@
 import os,sys
 #os.environ['PYOPENCL_CTX']='0:1'
 #os.environ['PYOPENCL_COMPILER_OUTPUT'] = '0'
-os.environ['CUDA_PROFILE'] = '1'
+#os.environ['CUDA_PROFILE'] = '1'
 import chroma.api as api
 #api.use_opencl()
 api.use_cuda()
@@ -10,9 +10,7 @@ import numpy as np
 from chroma.sim import Simulation
 from chroma.event import Photons
 from chroma.uboone.uboonedet import ubooneDet
-#from chroma.workqueue.RayQueue import RayQueue
 from chroma.gpu.photon import GPUPhotons
-from workqueue.RayQueue import RayQueue
 
 try:
     import ROOT as rt
@@ -22,12 +20,14 @@ except:
 
 class TestUbooneDetector(unittest.TestCase):
     def setUp(self):
-        daefile = "../gdml/microboone_nowires_chroma_simplified.dae"
-        #self.geo = ubooneDet( daefile,  acrylic_detect=False, acrylic_wls=True )
-        self.geo = ubooneDet( daefile, detector_volumes=["vol_PMT_AcrylicPlate"],
+        # UBOONE
+        #daefile = "../gdml/microboone_nowires_chroma_simplified.dae"
+        daefile = "dae/microboone_32pmts_nowires_cryostat.dae"
+        self.geo = ubooneDet( daefile, detector_volumes=["vol_PMT_AcrylicPlate","volPaddle_PMT"],
                               acrylic_detect=True, acrylic_wls=False,  
-                              read_bvh_cache=True, cache_dir="./uboone_bvh_nowires")
-        self.sim = Simulation(self.geo, geant4_processes=0, nthreads_per_block=256, max_blocks=1024)
+                              read_bvh_cache=True, cache_dir="./uboone_cache",
+                              dump_node_info=True)
+        self.sim = Simulation(self.geo, geant4_processes=0)
         self.origin = self.geo.bvh.world_coords.world_origin
 
 
@@ -59,11 +59,11 @@ class TestUbooneDetector(unittest.TestCase):
             ev.photons_end.dump_history()
             lht = ev.photons_end[0].last_hit_triangles
 
-    @unittest.skip('skipping testDet')
+    #@unittest.skip('skipping testDet')
     def testPhotonBomb(self):
 
         # Run only one photon at a time
-        nphotons = 32*12
+        nphotons = 256*1000
 
         dphi = np.random.uniform(0,2.0*np.pi, nphotons)
         dcos = np.random.uniform(-1.0, 1.0, nphotons)
@@ -95,7 +95,7 @@ class TestUbooneDetector(unittest.TestCase):
             print ev.channels.q
             print ev.channels.t
 
-    #@unittest.skip('skipping testDet')
+    @unittest.skip('skipping testDet')
     def testWorkQueue(self):
 
         # Run only one photon at a time
@@ -122,9 +122,9 @@ class TestUbooneDetector(unittest.TestCase):
 
         photons = Photons(pos=pos, dir=dir, pol=pol, t=t, wavelengths=wavelengths)
 
-        rq = RayQueue( self.sim.context )
-        rq.checknodes.print_dev_info()
-        rq.simulate( photons, self.sim )
+        #rq = RayQueue( self.sim.context )
+        #rq.checknodes.print_dev_info()
+        #rq.simulate( photons, self.sim )
 
 if __name__ == "__main__":
     import pycuda
