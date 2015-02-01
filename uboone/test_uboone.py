@@ -64,6 +64,7 @@ class TestUbooneDetector(unittest.TestCase):
 
         # Run only one photon at a time
         nphotons = 256*10000
+        #nphotons = 256*10
 
         dphi = np.random.uniform(0,2.0*np.pi, nphotons)
         dcos = np.random.uniform(-1.0, 1.0, nphotons)

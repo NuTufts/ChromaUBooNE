@@ -15,19 +15,32 @@ __device__ uint4
 get_packed_node(Geometry *geometry, const unsigned int &i)
 {
   if (i < geometry->nprimary_nodes) {
-    uint x = tex1Dfetch( node_tex_ref, 4*i+0 );
-    uint y = tex1Dfetch( node_tex_ref, 4*i+1 );
-    uint z = tex1Dfetch( node_tex_ref, 4*i+2 );
-    uint w = tex1Dfetch( node_tex_ref, 4*i+3 );
-    return make_uint4( x, y, z, w );
+    // vector texture access
+    return tex1Dfetch( nodevec_tex_ref, i );
+
+    // individual texture access
+    //uint x = tex1Dfetch( node_tex_ref, 4*i+0 );
+    //uint y = tex1Dfetch( node_tex_ref, 4*i+1 );
+    //uint z = tex1Dfetch( node_tex_ref, 4*i+2 );
+    //uint w = tex1Dfetch( node_tex_ref, 4*i+3 );
+    //return make_uint4( x, y, z, w );
+    
+    // original: global access
     //return geometry->primary_nodes[i];
   }
   else {
-    uint x = tex1Dfetch( extra_node_tex_ref, 4*(i-geometry->nprimary_nodes)+0 );
-    uint y = tex1Dfetch( extra_node_tex_ref, 4*(i-geometry->nprimary_nodes)+1 );
-    uint z = tex1Dfetch( extra_node_tex_ref, 4*(i-geometry->nprimary_nodes)+2 );
-    uint w = tex1Dfetch( extra_node_tex_ref, 4*(i-geometry->nprimary_nodes)+3 );
-    return make_uint4( x, y, z, w );
+
+    // vector texture access
+    return tex1Dfetch( extra_nodevec_tex_ref, i );
+
+    // individual texture access
+    /* uint x = tex1Dfetch( extra_node_tex_ref, 4*(i-geometry->nprimary_nodes)+0 ); */
+    /* uint y = tex1Dfetch( extra_node_tex_ref, 4*(i-geometry->nprimary_nodes)+1 ); */
+    /* uint z = tex1Dfetch( extra_node_tex_ref, 4*(i-geometry->nprimary_nodes)+2 ); */
+    /* uint w = tex1Dfetch( extra_node_tex_ref, 4*(i-geometry->nprimary_nodes)+3 ); */
+    /* return make_uint4( x, y, z, w ); */
+
+    // original: global access
     //return geometry->extra_nodes[i - geometry->nprimary_nodes];
   }
 }
@@ -69,19 +82,30 @@ get_triangle(Geometry *geometry, const unsigned int &i)
     /* triangle.v0 = geometry->vertices[triangle_data.x]; */
     /* triangle.v1 = geometry->vertices[triangle_data.y]; */
     /* triangle.v2 = geometry->vertices[triangle_data.z]; */
-  uint tri_vert[3];
-  for (int t=0; t<3; t++)
-    tri_vert[t] = tex1Dfetch( triangles_tex_ref, 3*i+t ); // index of 3 vertices
 
-  float verts[3][3];
-  for (int t=0; t<3; t++)
-    for (int v=0; v<3; v++)
-      verts[t][v] = tex1Dfetch( vertices_tex_ref, 3*tri_vert[t]+v ); // coordinates
+  // individual access to texture memory
+  /* uint tri_vert[3]; */
+  /* for (int t=0; t<3; t++) */
+  /*   tri_vert[t] = tex1Dfetch( triangles_tex_ref, 3*i+t ); // index of 3 vertices */
 
+  /* float verts[3][3]; */
+  /* for (int t=0; t<3; t++) */
+  /*   for (int v=0; v<3; v++) */
+  /*     verts[t][v] = tex1Dfetch( vertices_tex_ref, 3*tri_vert[t]+v ); // coordinates */
+
+  /* Triangle triangle; */
+  /* triangle.v0 = make_float3( verts[0][0], verts[0][1], verts[0][2] ); */
+  /* triangle.v1 = make_float3( verts[1][0], verts[1][1], verts[1][2] ); */
+  /* triangle.v2 = make_float3( verts[2][0], verts[2][1], verts[2][2] ); */
+
+  uint4 tri_vert = tex1Dfetch( trianglesvec_tex_ref, i );
+  float4 v0 = tex1Dfetch( verticesvec_tex_ref, tri_vert.x );
+  float4 v1 = tex1Dfetch( verticesvec_tex_ref, tri_vert.y );
+  float4 v2 = tex1Dfetch( verticesvec_tex_ref, tri_vert.z );
   Triangle triangle;
-  triangle.v0 = make_float3( verts[0][0], verts[0][1], verts[0][2] );
-  triangle.v1 = make_float3( verts[1][0], verts[1][1], verts[1][2] );
-  triangle.v2 = make_float3( verts[2][0], verts[2][1], verts[2][2] );
+  triangle.v0 = make_float3( v0.x, v0.y, v0.z );
+  triangle.v1 = make_float3( v1.x, v1.y, v1.z );
+  triangle.v2 = make_float3( v2.x, v2.y, v2.z );
 
   return triangle;
 }
