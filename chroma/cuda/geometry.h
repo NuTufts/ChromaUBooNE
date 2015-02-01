@@ -62,14 +62,28 @@ get_node(Geometry *geometry, const unsigned int &i)
 __device__ Triangle
 get_triangle(Geometry *geometry, const unsigned int &i)
 {
-    uint3 triangle_data = geometry->triangles[i];
+  // access to global memory
+    /* uint3 triangle_data = geometry->triangles[i]; */
 
-    Triangle triangle;
-    triangle.v0 = geometry->vertices[triangle_data.x];
-    triangle.v1 = geometry->vertices[triangle_data.y];
-    triangle.v2 = geometry->vertices[triangle_data.z];
+    /* Triangle triangle; */
+    /* triangle.v0 = geometry->vertices[triangle_data.x]; */
+    /* triangle.v1 = geometry->vertices[triangle_data.y]; */
+    /* triangle.v2 = geometry->vertices[triangle_data.z]; */
+  uint tri_vert[3];
+  for (int t=0; t<3; t++)
+    tri_vert[t] = tex1Dfetch( triangles_tex_ref, 3*i+t ); // index of 3 vertices
 
-    return triangle;
+  float verts[3][3];
+  for (int t=0; t<3; t++)
+    for (int v=0; v<3; v++)
+      verts[t][v] = tex1Dfetch( vertices_tex_ref, 3*tri_vert[t]+v ); // coordinates
+
+  Triangle triangle;
+  triangle.v0 = make_float3( verts[0][0], verts[0][1], verts[0][2] );
+  triangle.v1 = make_float3( verts[1][0], verts[1][1], verts[1][2] );
+  triangle.v2 = make_float3( verts[2][0], verts[2][1], verts[2][2] );
+
+  return triangle;
 }
 
 template <class T>

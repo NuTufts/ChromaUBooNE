@@ -3,8 +3,8 @@ import os,sys
 #os.environ['PYOPENCL_COMPILER_OUTPUT'] = '0'
 #os.environ['CUDA_PROFILE'] = '1'
 import chroma.api as api
-api.use_opencl()
-#api.use_cuda()
+#api.use_opencl()
+api.use_cuda()
 from unittest_find import unittest
 import numpy as np
 from chroma.sim import Simulation
@@ -63,7 +63,7 @@ class TestUbooneDetector(unittest.TestCase):
     def testPhotonBomb(self):
 
         # Run only one photon at a time
-        nphotons = 256*1000
+        nphotons = 256*10000
 
         dphi = np.random.uniform(0,2.0*np.pi, nphotons)
         dcos = np.random.uniform(-1.0, 1.0, nphotons)

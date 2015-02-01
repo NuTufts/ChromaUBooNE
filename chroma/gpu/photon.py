@@ -71,8 +71,10 @@ class GPUPhotons(object):
 
         if api.is_gpu_api_cuda():
             module = get_module('propagate.cu', options=api_options, include_source_directory=True)
-            self.node_texture_ref = module.get_texref( "node_tex_ref" )
+            self.node_texture_ref       = module.get_texref( "node_tex_ref" )
             self.extra_node_texture_ref = module.get_texref( "extra_node_tex_ref" )
+            self.vertices_texture_ref   = module.get_texref( "vertices_tex_ref" )
+            self.triangles_texture_ref   = module.get_texref( "triangles_tex_ref" )
             self.node_texture_ref_bound = False
         elif  api.is_gpu_api_opencl():
             module = get_module('propagate.cl', cl_context, options=api_options, include_source_directory=True)
@@ -140,11 +142,21 @@ class GPUPhotons(object):
         nphotons = self.pos.size
         # bind node texture reference
         if not self.node_texture_ref_bound:
+            # we have to unroll, as pycuda doesn't seem to support vector times right now for binding
             self.unrolled_nodes = ga.to_gpu( gpu_geometry.nodes.get().ravel().view( np.uint32 ) )
-            self.unrolled_nodes.bind_to_texref_ext( self.node_texture_ref )
             self.unrolled_extra_nodes = ga.to_gpu( gpu_geometry.extra_nodes.ravel().view( np.uint32 ) )
+            self.unrolled_triangles = ga.to_gpu( gpu_geometry.triangles.get().ravel().view( np.uint32 ) )
+            self.unrolled_vertices  = ga.to_gpu( gpu_geometry.vertices.get().ravel().view( np.float32 ) )
+            self.unrolled_nodes.bind_to_texref_ext( self.node_texture_ref )
             self.unrolled_extra_nodes.bind_to_texref_ext( self.extra_node_texture_ref )
-            #gpu_geometry.nodes.bind_to_texref_ext( self.node_texture_ref )
+            self.unrolled_triangles.bind_to_texref_ext( self.triangles_texture_ref )
+            self.unrolled_vertices.bind_to_texref_ext( self.vertices_texture_ref )
+            print "[BOUND TO TEXTURE MEMORY]"
+            print "Nodes: ",self.unrolled_nodes.nbytes/1.0e3," kbytes"
+            print "Extra nodes: ",self.unrolled_extra_nodes.nbytes/1.0e3," kbytes"
+            print "Triangles: ",self.unrolled_triangles.nbytes/1.0e3," kbytes"
+            print "Vertices: ",self.unrolled_vertices.nbytes/1.0e3," kbytes"
+            print "Total: ",(self.unrolled_nodes.nbytes+self.unrolled_extra_nodes.nbytes+self.unrolled_triangles.nbytes+self.unrolled_vertices.nbytes)/1.0e3,"kbytes"
             self.node_texture_ref_bound = True
 
         # setup queue
