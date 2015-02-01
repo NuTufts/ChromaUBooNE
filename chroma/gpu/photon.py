@@ -71,6 +71,9 @@ class GPUPhotons(object):
 
         if api.is_gpu_api_cuda():
             module = get_module('propagate.cu', options=api_options, include_source_directory=True)
+            self.node_texture_ref = module.get_texref( "node_tex_ref" )
+            self.extra_node_texture_ref = module.get_texref( "extra_node_tex_ref" )
+            self.node_texture_ref_bound = False
         elif  api.is_gpu_api_opencl():
             module = get_module('propagate.cl', cl_context, options=api_options, include_source_directory=True)
         self.gpu_funcs = GPUFuncs(module)
@@ -135,6 +138,16 @@ class GPUPhotons(object):
             number of curandStates.
         """
         nphotons = self.pos.size
+        # bind node texture reference
+        if not self.node_texture_ref_bound:
+            self.unrolled_nodes = ga.to_gpu( gpu_geometry.nodes.get().ravel().view( np.uint32 ) )
+            self.unrolled_nodes.bind_to_texref_ext( self.node_texture_ref )
+            self.unrolled_extra_nodes = ga.to_gpu( gpu_geometry.extra_nodes.ravel().view( np.uint32 ) )
+            self.unrolled_extra_nodes.bind_to_texref_ext( self.extra_node_texture_ref )
+            #gpu_geometry.nodes.bind_to_texref_ext( self.node_texture_ref )
+            self.node_texture_ref_bound = True
+
+        # setup queue
         maxqueue = nphotons
         step = 0
         input_queue = np.empty(shape=maxqueue+1, dtype=np.uint32)

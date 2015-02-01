@@ -3,6 +3,7 @@
 
 #include "geometry_types.h"
 #include "linalg.h"
+#include "nodetexref.h"
 
 __device__ float3 
 to_float3(const uint3 &a)
@@ -13,10 +14,22 @@ to_float3(const uint3 &a)
 __device__ uint4
 get_packed_node(Geometry *geometry, const unsigned int &i)
 {
-    if (i < geometry->nprimary_nodes)
-	return geometry->primary_nodes[i];
-    else
-	return geometry->extra_nodes[i - geometry->nprimary_nodes];
+  if (i < geometry->nprimary_nodes) {
+    uint x = tex1Dfetch( node_tex_ref, 4*i+0 );
+    uint y = tex1Dfetch( node_tex_ref, 4*i+1 );
+    uint z = tex1Dfetch( node_tex_ref, 4*i+2 );
+    uint w = tex1Dfetch( node_tex_ref, 4*i+3 );
+    return make_uint4( x, y, z, w );
+    //return geometry->primary_nodes[i];
+  }
+  else {
+    uint x = tex1Dfetch( extra_node_tex_ref, 4*(i-geometry->nprimary_nodes)+0 );
+    uint y = tex1Dfetch( extra_node_tex_ref, 4*(i-geometry->nprimary_nodes)+1 );
+    uint z = tex1Dfetch( extra_node_tex_ref, 4*(i-geometry->nprimary_nodes)+2 );
+    uint w = tex1Dfetch( extra_node_tex_ref, 4*(i-geometry->nprimary_nodes)+3 );
+    return make_uint4( x, y, z, w );
+    //return geometry->extra_nodes[i - geometry->nprimary_nodes];
+  }
 }
 __device__ void
 put_packed_node(Geometry *geometry, const unsigned int &i, const uint4 &node)
