@@ -15,6 +15,7 @@ try:
     has_root = True
 except:
     has_root = False
+    raise ValueError("No ROOT")
 
 if has_root:
     class PhotonData( TreeModel ):
@@ -40,9 +41,11 @@ if has_root:
 
 class TestUbooneDetector(unittest.TestCase):
     def setUp(self):
-        self.geo = ubooneDet( "lar1nd_chroma.dae", detector_volumes=["vollightguidedetector"],
+        daefile = "lar1nd_chroma.dae"
+        #daefile = "lar1nd_lightguides_nowires_chroma.dae"
+        self.geo = ubooneDet( daefile, detector_volumes=["vollightguidedetector"],
                               acrylic_detect=True, acrylic_wls=False,
-                              read_bvh_cache=True, cache_dir="./lar1nd_cache")
+                              read_bvh_cache=False, cache_dir="./lar1nd_cache")
         self.sim = Simulation(self.geo, geant4_processes=0, nthreads_per_block=1, max_blocks=100)
 
     @unittest.skip('skipping testDet')
@@ -70,14 +73,14 @@ class TestUbooneDetector(unittest.TestCase):
     def testPhotonBomb(self):
 
         # Run only one photon at a time
-        nphotons = 1000
+        nphotons = 50000
         #nphotons = 7200000
 
         dphi = np.random.uniform(0,2.0*np.pi, nphotons)
         dcos = np.random.uniform(-1.0, 1.0, nphotons)
         dir = np.array( zip( np.sqrt(1-dcos[:]*dcos[:])*np.cos(dphi[:]), np.sqrt(1-dcos[:]*dcos[:])*np.sin(dphi[:]), dcos[:] ), dtype=np.float32 )
 
-        pos = np.tile([0,0,0], (nphotons,1)).astype(np.float32)
+        pos = np.tile([-1000,0,0], (nphotons,1)).astype(np.float32)
         pol = np.zeros_like(pos)
         phi = np.random.uniform(0, 2*np.pi, nphotons).astype(np.float32)
         pol[:,0] = np.cos(phi)
@@ -89,7 +92,7 @@ class TestUbooneDetector(unittest.TestCase):
         hit_charges = []
 
         if has_root:
-            root_file = root_open("output_test_lar1nd.root", "recreate")
+            root_file = root_open("output_test_lar1nd_wires.root", "recreate")
             root_tree = Tree("PhotonData", model=PhotonData )
             root_tree.reset()
             
@@ -105,7 +108,7 @@ class TestUbooneDetector(unittest.TestCase):
             #print ev.channels.q
             #print ev.channels.t
             cycles += 1
-            if False:
+            if True:
                 # Fill Tree
                 #print "save info for ",len(ev.photons_end)
                 for photon in ev.photons_end:

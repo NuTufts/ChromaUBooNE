@@ -1,7 +1,14 @@
 <?xml version="1.0" encoding="UTF-8" ?>
+<!--
 <gdml xmlns:gdml="http://cern.ch/2001/Schemas/GDML"
       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
       xsi:noNamespaceSchemaLocation="GDMLSchema/gdml.xsd">
+-->
+<!-- For running in non-larsoft environment -->
+<gdml xmlns:gdml="http://cern.ch/2001/Schemas/GDML" 
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+      xsi:noNamespaceSchemaLocation="http://service-spi.web.cern.ch/service-spi/app/releases/GDML/schema/gdml.xsd" >
+<!-- xxxxxxxx -->
 <define>
    <rotation name="rPlus30AboutX"  unit="deg" x="30"  y="0"   z="0"/>
    <rotation name="rPlus60AboutX"  unit="deg" x="60"  y="0"   z="0"/>
@@ -32,8 +39,8 @@
    <rotation name="rPlus90AboutXPlus90AboutY"  unit="deg"  x="90" y="90" z="0"/>
    <rotation name="rPMTRotation1"  unit="deg" x="90"  y="270"   z="0"/>
    <position name="posCenter" unit="mm" x="0" y="0" z="0"/>
-
 </define>
+
 <materials>
   <element name="bromine" formula="Br" Z="35"> <atom value="79.904"/> </element>
   <element name="hydrogen" formula="H" Z="1">  <atom value="1.0079"/> </element>
@@ -1992,7 +1999,7 @@
      <position name="pos_PMT_InnerLens" unit="cm" x="0" y="0" z="0"/>
    </physvol>
  </volume>
-<!--------------->
+<!-- xxxxxxxxxxx -->
  <volume name="volPMT">
   <materialref ref="LAr"/>
   <solidref ref="PMTVolume"/>
@@ -2032,7 +2039,7 @@
     <volumeref ref="vol_PMT_HemisphereLens"/>
     <position name="pos_PMT_HemisphereLens" unit="cm" x="0" y="0" z="(-5.5+1.5+3.0+2.5)*2.54"/>
   </physvol>
-<!--------------->
+<!-- xxxxxxxxxxxxx -->
  </volume>
 
 
@@ -2655,7 +2662,8 @@
 
 <setup name="Default" version="1.0">
   <!--  <world ref="volWorld" /> -->
-  <world ref="volDetEnclosure" />
+  <!-- <world ref="volDetEnclosure"/> -->
+  <world ref="volCryostat"/>
 </setup>
 
 </gdml>

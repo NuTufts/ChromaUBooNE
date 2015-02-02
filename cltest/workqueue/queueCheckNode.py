@@ -166,6 +166,7 @@ class queueCheckNode(workQueue):
             print x,": ",slot_flags[x:y]
 
         print "NODE FRONT: ",node_front_start.get(), " to ",node_front_end.get(), node_front_end.get()-node_front_start.get()
+        return 
 
     def _call_cuda_kernel(self, sim, photons, ourphotons, max_shared_nodes, nodes, workgroupsize ):
         module = get_module( 'wq_checknode.cu', options=api_options, include_source_directory=True)

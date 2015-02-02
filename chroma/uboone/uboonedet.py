@@ -95,6 +95,8 @@ class ubooneDet( Detector ):
                                 update_bvh_cache=update_bvh_cache,
                                 cache_dir=cache_dir, bvh_method=bvh_method, target_degree=bvh_target_degree,
                                 cuda_device=cuda_device, cl_device=cl_device)
+
+        # This tree helps with the navigation of the node tree
         self.node_dsar_tree = NodeDSARtree( self.bvh )
         self._setup_photodetectors()
 
