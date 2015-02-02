@@ -63,7 +63,8 @@ class TestUbooneDetector(unittest.TestCase):
     def testPhotonBomb(self):
 
         # Run only one photon at a time
-        nphotons = 256*10000
+        nphotons = 7200000
+        #nphotons = 256*10000
         #nphotons = 256*10
 
         dphi = np.random.uniform(0,2.0*np.pi, nphotons)
@@ -86,7 +87,7 @@ class TestUbooneDetector(unittest.TestCase):
 
         photons = Photons(pos=pos, dir=dir, pol=pol, t=t, wavelengths=wavelengths)
         hit_charges = []
-        for ev in self.sim.simulate( (photons for i in xrange(1)), keep_photons_end=True, keep_photons_beg=False, ):
+        for ev in self.sim.simulate( (photons for i in xrange(1)), keep_photons_end=True, keep_photons_beg=False):
             ev.photons_end.dump_history()
             lht = ev.photons_end[0].last_hit_triangles
             nhits = ev.channels.hit[ np.arange(0,30)[:] ]

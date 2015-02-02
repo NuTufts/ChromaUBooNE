@@ -211,12 +211,22 @@ intersect_mesh(const float3 &origin, const float3& direction, Geometry *g,
 }
 
 __device__ int
-intersect_mesh_nvidia( Photon& p, Geometry* g ) 
+intersect_mesh_nvidia( const float3 &position, const float3 &direction, const float3 &invdir, const float3 &ood, 
+		       float& tmin, float& hitT,
+		       Geometry* g, float& min_distance, int last_hit_triangle=-1 ) 
 {
 
   int triangle_index = -1;
 
+  // for old code check
+  float distance;
+  min_distance = -1.0f;
+  int aligned_axis = get_aligned_axis( direction );   // 0:usual case not aligned, special case direction along axis 1:x 2:y 3:z 
+  float3 inv_dir = 1.0f / direction;
+  float3 neg_origin_inv_dir = -position / direction;
   Node root = get_node(g, 0);
+  if (!intersect_node_special(neg_origin_inv_dir, inv_dir, position, direction, aligned_axis, g, root, min_distance))
+    return -1;
   
   unsigned int child_ptr_stack[STACK_SIZE];
   unsigned int nchild_ptr_stack[STACK_SIZE];
@@ -229,9 +239,11 @@ intersect_mesh_nvidia( Photon& p, Geometry* g )
   unsigned int tri_count = 0;
   unsigned int hitsame = 0 ;
   int maxcurr = 0 ;
-  float dist_to_tri = -1.0f;
+  float dist_to_tri = -1.0f; // distance
   float tmaxbox = -1.0f;
   float tminbox = -1.0f;
+  //hitT = 0.0f; // min_distance = -1.0f;
+
 
   while (curr >= 0)  {
 
@@ -243,9 +255,14 @@ intersect_mesh_nvidia( Photon& p, Geometry* g )
       Node node = get_node(g, i);
       count++;
       
-      bool intersect_node = intersect_box_nvidia( p.position, p.diection, p.invdir, p.ood,
-						  node.lower, node.upper, p.hitT, p.tmin, tminbox, tmaxbox );
-      if (intersect_node) {
+      bool intersect_node = intersect_box_nvidia( position, direction, invdir, ood,
+      						  node.lower, node.upper, tmin, hitT, 
+						  tminbox, tmaxbox );
+      /* if ( threadIdx.x==0 ) { */
+      /* 	printf("intersect node: %.2f ht=%d, %.2f, %.2f\n",tminbox,int(intersect_node), tmin, hitT); */
+      /* } */
+      //bool intersect_node = intersect_node_special( neg_origin_inv_dir, inv_dir, position, direction, aligned_axis, g, node, min_distance ); // original function
+      if (intersect_node && ( min_distance<0.0f || tminbox<min_distance ) ) {
 	// could I cut on nodes further than previously hit triangles?
 	
 	if (node.nchild == 0) { /* leaf node */
@@ -255,13 +272,15 @@ intersect_mesh_nvidia( Photon& p, Geometry* g )
 	    // Can't hit same triangle twice in a row
 	    tri_count++;
 	    Triangle t = get_triangle(g, node.child);
-	    bool intersect_tri = intersect_triangle( p, t, dist_to_tri);
-	    if (intersect_tri )
+	    bool intersect_tri = intersect_triangle( position, direction, t, distance); // original function
+	    //bool intersect_tri = intersect_triangle_nvidia( position, direction, t, dist_to_tri);
+	    if (intersect_tri)
 	      {
-		if (triangle_index == -1 || dist_to_tri < p.hitT ) 
+		if (triangle_index == -1 || distance < min_distance ) 
 		  {
 		    triangle_index = node.child;
-		    p.hitT = dist_to_tri;
+		    min_distance = distance;
+		    hitT = distance;
 		  }    // if hit triangle is closer than previous hits
 		
 	      } // if hit triangle

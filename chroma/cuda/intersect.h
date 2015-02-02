@@ -157,7 +157,7 @@ intersect_box_axis_aligned( const int& aligned_axis, const float3 &origin, const
 __device__ bool
 intersect_box_nvidia(const float3 &origin, const float3 &direction, const float3 &idir, const float3 &ood,
 		     const float3 &lower_bound, const float3 &upper_bound, 
-		     const float &tmaxray, const float &tminray, 
+		     const float &tminray, const float &tmaxray, 
 		     float& tminbox, float& tmaxbox)
 {
   const float c0lox = lower_bound.x * idir.x - ood.x;
@@ -165,7 +165,7 @@ intersect_box_nvidia(const float3 &origin, const float3 &direction, const float3
   const float c0loy = lower_bound.y * idir.y - ood.y;
   const float c0hiy = upper_bound.y * idir.y - ood.y;
   const float c0loz = lower_bound.z * idir.z - ood.z;
-  const float c0hiz = upper_bound.x * idir.z - ood.z;
+  const float c0hiz = upper_bound.z * idir.z - ood.z;
   const float c0min = spanBeginKepler(c0lox, c0hix, c0loy, c0hiy, c0loz, c0hiz, tminray);
   const float c0max = spanEndKepler  (c0lox, c0hix, c0loy, c0hiy, c0loz, c0hiz, tmaxray);
 
@@ -177,12 +177,12 @@ intersect_box_nvidia(const float3 &origin, const float3 &direction, const float3
 }
 
 __device__ bool
-intersect_triangle_nvidia(Photon &p, const Triangle &triangle, float &distance)
+intersect_triangle_nvidia( const float3 &origin, const float3 &direction, const Triangle &triangle, float &distance)
 {
   // if can figure out woop test, optimize here
   float3 m1 = triangle.v1-triangle.v0;
   float3 m2 = triangle.v2-triangle.v0;
-  float3 m3 = -p.direction;
+  float3 m3 = -direction;
   
   Matrix m = make_matrix(m1, m2, m3);
   
@@ -191,7 +191,7 @@ intersect_triangle_nvidia(Photon &p, const Triangle &triangle, float &distance)
   if (determinant == 0.0f)
     return false;
   
-  float3 b = p.origin-triangle.v0;
+  float3 b = origin-triangle.v0;
 
   float u1 = ((m.a11*m.a22 - m.a12*m.a21)*b.x +
 	      (m.a02*m.a21 - m.a01*m.a22)*b.y +

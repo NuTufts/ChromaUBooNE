@@ -183,17 +183,22 @@ __device__ void
 fill_state(State &s, Photon &p, Geometry *g)
 {
 
-/*     p.last_hit_triangle = intersect_mesh(p.position, p.direction, g, */
-/*                                          s.distance_to_boundary,  */
-/*                                          p.last_hit_triangle); */
-    p.last_hit_triangle = intersect_mesh_nvidia( p, g );
+  float ooeps = exp2f(-80.0f); // Avoid div by zero.
 
-    if (p.last_hit_triangle == -1) {
-      s.material1_index = 999;  
-      s.material2_index = 999;  
-      p.history |= NO_HIT;
-      return;
-    }
+  p.invdir.x = 1.0f/( fabsf(p.direction.x)>ooeps ? p.direction.x : copysignf(ooeps, p.direction.x) );
+  p.invdir.y = 1.0f/( fabsf(p.direction.y)>ooeps ? p.direction.y : copysignf(ooeps, p.direction.y) );
+  p.invdir.z = 1.0f/( fabsf(p.direction.z)>ooeps ? p.direction.z : copysignf(ooeps, p.direction.z) );
+  p.ood = p.position * p.invdir;
+  
+  //p.last_hit_triangle = intersect_mesh(p.position, p.direction, g,s.distance_to_boundary,p.last_hit_triangle); // working
+  p.last_hit_triangle = intersect_mesh_nvidia( p.position, p.direction, p.invdir, p.ood, p.tmin, p.hitT, g, s.distance_to_boundary, p.last_hit_triangle ); // not working
+
+  if (p.last_hit_triangle == -1) {
+    s.material1_index = 999;  
+    s.material2_index = 999;  
+    p.history |= NO_HIT;
+    return;
+  }
 
     Triangle t = get_triangle(g, p.last_hit_triangle);
 
