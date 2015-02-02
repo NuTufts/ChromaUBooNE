@@ -124,6 +124,9 @@ int intersect_mesh(const float3 *origin, const float3* direction, __local Geomet
   *min_distance = -1.0f; // set default
 
   Node root = get_node(g, 0);
+//   printf("get_node (%d): lower=(%.2f %.2f %.2f) upper=(%.2f %.2f, %.2f)\n", 0, 
+// 	 root.lower.x, root.lower.y, root.lower.z,
+// 	 root.upper.x, root.upper.y, root.upper.z );
 
   float3 neg_origin_inv_dir = -(*origin) / (*direction);
   float3 inv_dir = 1.0f / (*direction);

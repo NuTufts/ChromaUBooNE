@@ -99,6 +99,7 @@ enum {
 void pdump( const Photon* p, int photon_id, int status, int steps, int command, int slot );
 //void print_photon_status( int status );
 //void print_photon_command( int command );
+void print_photon_flag( const Photon* p );
 int convert(int c);
 float get_theta(const float3 *a, const float3 *b);
 void fill_state(State* s, Photon* p, __local Geometry *g);
@@ -209,6 +210,28 @@ void pdump( const Photon* p, int photon_id, int status, int steps, int command, 
 /*     default        : printf("         ") ; */
 /*     } */
 /* } */
+
+void print_photon_flag( const Photon* p ) {
+
+    if (p->history & NO_HIT )           printf("NO_HIT ");
+    if (p->history & RAYLEIGH_SCATTER ) printf("RAYLEIGH_SCATTER ");
+    if (p->history & REFLECT_DIFFUSE )  printf("REFLECT_DIFFUSE ");
+    if (p->history & REFLECT_SPECULAR ) printf("REFLECT_SPECULAR ");
+    if (p->history & SURFACE_REEMIT )   printf("SURFACE_REEMIT ");
+    if (p->history & BULK_REEMIT )      printf("BULK_REEMIT ");
+    if (p->history & SURFACE_TRANSMIT ) printf("SURFACE_TRANSMIT ");
+    if (p->history & SURFACE_ABSORB )   printf("SURFACE_ABSORB ");
+    if (p->history & SURFACE_DETECT )   printf("SURFACE_DETECT ");
+    if (p->history & BULK_ABSORB )      printf("BULK_ABSORB ");
+
+    // if (p->history & NAN_ABORT )      printf("NAN_ABORT "); 
+    unsigned int one = 0x1 ;   // avoids warning: integer conversion resulted in a change of sign
+    unsigned int U_NAN_ABORT = one << 31 ;
+    if (p->history & U_NAN_ABORT )      printf("NAN_ABORT ");
+    if (p->history==0)                  printf("NO_HISTORY ");
+    printf("\n");
+
+};
 
 void sdump( State* s ) {
 #if __OPENCL_VERSION__>=120
@@ -495,9 +518,13 @@ void propagate_at_boundary(Photon *p, State *s, __global clrandState *rng)
   float3 inv_dir = -p->direction;
   float incident_angle = get_theta( &(s->surface_normal),&inv_dir );
   float refracted_angle = asin(sin(incident_angle)*s->refractive_index1/s->refractive_index2);
+  //printf("in ad ref angle: %.2f %.2f\n",incident_angle,refracted_angle);
+  //printf("n1 %.2f, n2 %.2f\n",s->refractive_index1,s->refractive_index2);
+  //printf("surf norm %.2f %.2f, %.2f\n", s->surface_normal.x, s->surface_normal.y, s->surface_normal.z );
 
   float3 incident_plane_normal = cross(p->direction, s->surface_normal);
   float incident_plane_normal_length = length(incident_plane_normal);
+  //printf("incp norm %.2f %.2f, %.2f norm=%.2f\n", incident_plane_normal.x, incident_plane_normal.y, incident_plane_normal.z, incident_plane_normal_length );
   
   // Photons at normal incidence do not have a unique plane of incidence,
   // so we have to pick the plane normal to be the polarization vector
@@ -505,11 +532,12 @@ void propagate_at_boundary(Photon *p, State *s, __global clrandState *rng)
   if (incident_plane_normal_length < 1e-6f)
     incident_plane_normal = p->polarization;
   else
-    incident_plane_normal /= incident_plane_normal_length;
+    normalize( incident_plane_normal );
   
   float normal_coefficient = dot(p->polarization, incident_plane_normal);
   float normal_probability = normal_coefficient*normal_coefficient;
-  
+  //printf("norm cof: %.2f\n",incident_plane_normal_length);
+
   float reflection_coefficient;
   if (clrand_uniform(rng, 0.0f, 1.0f) < normal_probability) 
     {
@@ -532,7 +560,7 @@ void propagate_at_boundary(Photon *p, State *s, __global clrandState *rng)
     {
       // photon polarization parallel to plane of incidence
       reflection_coefficient = tan(incident_angle-refracted_angle)/tan(incident_angle+refracted_angle);
-      
+      //printf("refcof: %.2f\n",reflection_coefficient);
       if ((clrand_uniform(rng, 0.0f, 1.0f) < reflection_coefficient*reflection_coefficient) || isnan(refracted_angle)) 
         {
 	  p->direction = rotate_with_vec(&(s->surface_normal), incident_angle, &incident_plane_normal);

@@ -210,6 +210,95 @@ intersect_mesh(const float3 &origin, const float3& direction, Geometry *g,
     return triangle_index;
 }
 
+__device__ int
+intersect_mesh_nvidia( Photon& p, Geometry* g ) 
+{
+
+  int triangle_index = -1;
+
+  Node root = get_node(g, 0);
+  
+  unsigned int child_ptr_stack[STACK_SIZE];
+  unsigned int nchild_ptr_stack[STACK_SIZE];
+  child_ptr_stack[0] = root.child;
+  nchild_ptr_stack[0] = root.nchild;
+  
+  int curr = 0;
+
+  unsigned int count = 0;
+  unsigned int tri_count = 0;
+  unsigned int hitsame = 0 ;
+  int maxcurr = 0 ;
+  float dist_to_tri = -1.0f;
+  float tmaxbox = -1.0f;
+  float tminbox = -1.0f;
+
+  while (curr >= 0)  {
+
+    unsigned int first_child = child_ptr_stack[curr];
+    unsigned int nchild = nchild_ptr_stack[curr];
+    curr--;
+    
+    for (unsigned int i=first_child; i < first_child + nchild; i++) {
+      Node node = get_node(g, i);
+      count++;
+      
+      bool intersect_node = intersect_box_nvidia( p.position, p.diection, p.invdir, p.ood,
+						  node.lower, node.upper, p.hitT, p.tmin, tminbox, tmaxbox );
+      if (intersect_node) {
+	// could I cut on nodes further than previously hit triangles?
+	
+	if (node.nchild == 0) { /* leaf node */
+	  
+	  // This node wraps a triangle
+	  if (node.child != last_hit_triangle) {
+	    // Can't hit same triangle twice in a row
+	    tri_count++;
+	    Triangle t = get_triangle(g, node.child);
+	    bool intersect_tri = intersect_triangle( p, t, dist_to_tri);
+	    if (intersect_tri )
+	      {
+		if (triangle_index == -1 || dist_to_tri < p.hitT ) 
+		  {
+		    triangle_index = node.child;
+		    p.hitT = dist_to_tri;
+		  }    // if hit triangle is closer than previous hits
+		
+	      } // if hit triangle
+	    
+	  } else {
+	    hitsame++;
+	  }    // if not hitting same triangle as last step
+	  
+	} else {
+	  curr++;
+	  child_ptr_stack[curr] = node.child;
+	  nchild_ptr_stack[curr] = node.nchild;
+	}  // leaf or internal node?
+      } // hit node?
+      
+      maxcurr = max( maxcurr, curr );
+
+      if (curr >= STACK_SIZE) {
+#if __CUDA_ARCH__ >= 200
+	printf("warning: intersect_mesh() aborted; node > tail\n");
+#endif
+	break;
+      }
+    }    // loop over children, starting with first_child
+    
+  }       // while nodes on stack
+  
+  // if (blockIdx.x == 0 && threadIdx.x == 0) {
+  //   printf("node gets: %d\n", count);
+  //   printf("triangle count: %d\n", tri_count);
+  // }
+  
+  //printf("node gets: %d triangle count: %d maxcurr: %d hitsame: %d \n", count, tri_count, maxcurr, hitsame );
+  
+  return triangle_index;
+}
+
 extern "C"
 {
 

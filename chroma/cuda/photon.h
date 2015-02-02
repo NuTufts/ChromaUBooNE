@@ -14,20 +14,27 @@
 
 struct Photon
 {
-    float3 position;
-    float3 direction;
-    float3 polarization;
-    float wavelength;
-    float time;
-  
-    float weight;
-  
-    unsigned int history;
 
-    int last_hit_triangle;
+  float3 position;
+  float3 direction;
+  float3 polarization;
+  float wavelength;
+  float time;
+  
+  float weight;
+  
+  unsigned int history;
+  
+  int last_hit_triangle;
 
+  // other useful vars
+  float tmin;
+  float hitT;    // distance to closest triangle
+  float3 ood;
+  float3 invdir;
+  
 #ifdef VBO_DEBUG
-    int id ;
+  int id ;
 #endif
 
 };
@@ -176,15 +183,16 @@ __device__ void
 fill_state(State &s, Photon &p, Geometry *g)
 {
 
-    p.last_hit_triangle = intersect_mesh(p.position, p.direction, g,
-                                         s.distance_to_boundary, 
-                                         p.last_hit_triangle);
+/*     p.last_hit_triangle = intersect_mesh(p.position, p.direction, g, */
+/*                                          s.distance_to_boundary,  */
+/*                                          p.last_hit_triangle); */
+    p.last_hit_triangle = intersect_mesh_nvidia( p, g );
 
     if (p.last_hit_triangle == -1) {
-        s.material1_index = 999;  
-        s.material2_index = 999;  
-        p.history |= NO_HIT;
-        return;
+      s.material1_index = 999;  
+      s.material2_index = 999;  
+      p.history |= NO_HIT;
+      return;
     }
 
     Triangle t = get_triangle(g, p.last_hit_triangle);

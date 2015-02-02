@@ -137,6 +137,7 @@ propagate(int first_photon, int nthreads, unsigned int *input_queue,
 
     int photon_id = input_queue[first_photon + id];
 
+    // intialize photon. register mem.
     Photon p;
     p.position = positions[photon_id];
     p.direction = directions[photon_id];
@@ -148,6 +149,13 @@ propagate(int first_photon, int nthreads, unsigned int *input_queue,
     p.last_hit_triangle = last_hit_triangles[photon_id];
     p.history = histories[photon_id];
     p.weight = weights[photon_id];
+    p.tmin = 0.0f;  // min distance to bv node, >=0 
+    p.hitT = 0.0f;  // max distance to bv node/triangle, >=0
+    float ooeps = exp2f(-80.0f); // Avoid div by zero.
+    p.invdir.x = 1.0f/( fabsf(p.direction.x)>ooeps ? p.direction.x : copysignf(ooeps, p.direction.x) );
+    p.invdir.y = 1.0f/( fabsf(p.direction.y)>ooeps ? p.direction.y : copysignf(ooeps, p.direction.y) );
+    p.invdir.z = 1.0f/( fabsf(p.direction.z)>ooeps ? p.direction.z : copysignf(ooeps, p.direction.z) );
+    p.ood = p.position * p.invdir;
 
     if (p.history & (NO_HIT | BULK_ABSORB | SURFACE_DETECT | SURFACE_ABSORB | NAN_ABORT))
 	return;
@@ -165,7 +173,7 @@ propagate(int first_photon, int nthreads, unsigned int *input_queue,
 	    break;
 	}
 
-	fill_state(s, p, g);
+	fill_state(s, p, g); // all of mesh traversal done here
 	//pdump( p, photon_id, p.history, steps, command, id );
 
 	if (p.last_hit_triangle == -1)
