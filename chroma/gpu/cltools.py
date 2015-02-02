@@ -126,7 +126,7 @@ def fill_array( context, rng_states, size ):
     randfuncs = GPUFuncs( randmod )
     nthreads_per_block = 256
     for first_index, elements_this_iter, nblocks_this_iter in chunk_iterator(size, nthreads_per_block, max_blocks=1):
-        randfuncs.fillArray( queue, (nthreads_per_block,1,1), None,
+        randfuncs.fillArray( queue, (elements_this_iter,1,1), None,
                              np.uint32(first_index),
                              rng_states.data,
                              out_gpu.data )

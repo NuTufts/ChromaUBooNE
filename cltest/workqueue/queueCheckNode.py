@@ -207,7 +207,7 @@ class queueCheckNode(workQueue):
         node_front_start = ga.empty( 1, dtype=np.int32 )
         node_front_end = ga.empty( 1, dtype=np.int32 )
         
-        max_loops = 3000
+        max_loops = 1000
 
         if len(gpugeo.extra_nodes)>1:
             raise RuntimeError('did not plan for there to be a node split.')
@@ -239,7 +239,7 @@ class queueCheckNode(workQueue):
                              np.int32(len(nodes)), nodes, node_parent, node_first_daughter, node_sibling, node_aunt,
                              world_origin, world_scale, 
                              queue_size, queue_photon_index, queue_slot_flag, np.int32(len(photon_pos)),
-                             np.int32(workgroupsize), max_nodes_can_store,
+                             max_nodes_can_store,
                              loaded_node_start_index, loaded_node_end_index, node_front_start, node_front_end,
                              block=(workgroupsize,1,1), grid=(1,1), shared=4*(7*max_nodes_can_store + 3*workgroupsize + 1) )
         cuda.Context.get_current().synchronize()

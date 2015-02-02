@@ -98,14 +98,18 @@ class GPUGeometry(object):
 
         # Load Vertices and Triangles
         if api.is_gpu_api_cuda():
-            self.vertices = mapped_empty(shape=len(geometry.mesh.vertices),
+            self.vertices   = mapped_empty(shape=len(geometry.mesh.vertices),
                                          dtype=ga.vec.float3,
                                          write_combined=True)
-            self.triangles = mapped_empty(shape=len(geometry.mesh.triangles),
+            self.vertices4  = np.zeros( shape=( len(self.vertices), 4 ), dtype=np.float32 )
+            self.triangles  = mapped_empty(shape=len(geometry.mesh.triangles),
                                           dtype=ga.vec.uint3,
                                           write_combined=True)
-            self.vertices[:] = to_float3(geometry.mesh.vertices)
-            self.triangles[:] = to_uint3(geometry.mesh.triangles)
+            self.triangles4 = np.zeros( shape=( len(self.triangles), 4 ), dtype=np.uint32 )
+            self.vertices[:]       = to_float3(geometry.mesh.vertices)
+            self.vertices4[:,:-1]  = self.vertices.ravel().view( np.float32 ).reshape( len(self.vertices), 3 )  # for textures
+            self.triangles[:]      = to_uint3(geometry.mesh.triangles)
+            self.triangles4[:,:-1] = self.triangles.ravel().view( np.uint32 ).reshape( len(self.triangles), 3 ) # for textures
         elif api.is_gpu_api_opencl():
             self.vertices = ga.empty( cl_queue, len(geometry.mesh.vertices), dtype=ga.vec.float3 )
             self.triangles = ga.empty( cl_queue, len(geometry.mesh.triangles), dtype=ga.vec.uint3 )
@@ -117,9 +121,8 @@ class GPUGeometry(object):
         elif api.is_gpu_api_opencl():
             self.world_origin = ga.vec.make_float3(*geometry.bvh.world_coords.world_origin)
             #self.world_origin = geometry.bvh.world_coords.world_origin
-            #self.world_origin_gpu = ga.to_device( cl_queue, self.world_origin, dtype=ga.vec.float3 )
-            self.world_origin_gpu = self.world_origin
-            print type(self.world_origin),self.world_origin, type(self.world_origin_gpu)
+            self.world_origin = ga.to_device( cl_queue, self.world_origin )
+            print type(self.world_origin),self.world_origin
         self.world_scale = np.float32(geometry.bvh.world_coords.world_scale)
 
         # Load material and surface indices into 8-bit codes

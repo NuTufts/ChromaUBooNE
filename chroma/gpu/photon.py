@@ -71,6 +71,19 @@ class GPUPhotons(object):
 
         if api.is_gpu_api_cuda():
             module = get_module('propagate.cu', options=api_options, include_source_directory=True)
+            self.node_texture_ref       = module.get_texref( "nodevec_tex_ref" )
+            self.node_texture_ref.set_format( cuda.array_format.UNSIGNED_INT32, 4 )
+
+            self.extra_node_texture_ref = module.get_texref( "extra_node_tex_ref" )
+            self.extra_node_texture_ref.set_format( cuda.array_format.UNSIGNED_INT32, 4 )
+
+            self.vertices_texture_ref   = module.get_texref( "verticesvec_tex_ref" )
+            self.vertices_texture_ref.set_format( cuda.array_format.FLOAT, 4 )
+
+            self.triangles_texture_ref   = module.get_texref( "trianglesvec_tex_ref" )
+            self.triangles_texture_ref.set_format( cuda.array_format.UNSIGNED_INT32, 4 )
+
+            self.node_texture_ref_bound = False
         elif  api.is_gpu_api_opencl():
             module = get_module('propagate.cl', cl_context, options=api_options, include_source_directory=True)
         self.gpu_funcs = GPUFuncs(module)
@@ -135,6 +148,32 @@ class GPUPhotons(object):
             number of curandStates.
         """
         nphotons = self.pos.size
+        # bind node texture reference
+        if not self.node_texture_ref_bound:
+            # we have to unroll, as pycuda doesn't seem to support vector times right now for binding
+            self.unrolled_nodes       = ga.to_gpu( gpu_geometry.nodes.get().ravel().view( np.uint32 ) )
+            self.unrolled_extra_nodes = ga.to_gpu( gpu_geometry.extra_nodes.ravel().view( np.uint32 ) )
+            self.unrolled_triangles   = ga.to_gpu( gpu_geometry.triangles.get().ravel().view( np.uint32 ) )
+            self.unrolled_triangles4  = ga.to_gpu( gpu_geometry.triangles4.ravel().view( np.uint32 ) )
+            self.unrolled_vertices    = ga.to_gpu( gpu_geometry.vertices.get().ravel().view( np.float32 ) )
+            self.unrolled_vertices4   = ga.to_gpu( gpu_geometry.vertices4.ravel().view( np.float32 ) )
+            self.node_texture_ref.set_address( self.unrolled_nodes.gpudata, self.unrolled_nodes.nbytes )
+            self.extra_node_texture_ref.set_address( self.unrolled_extra_nodes.gpudata, self.unrolled_extra_nodes.nbytes )
+            #self.unrolled_nodes.bind_to_texref_ext( self.node_texture_ref )
+            #self.unrolled_extra_nodes.bind_to_texref_ext( self.extra_node_texture_ref )
+            #self.unrolled_triangles.bind_to_texref_ext( self.triangles_texture_ref )
+            self.triangles_texture_ref.set_address( self.unrolled_triangles4.gpudata, self.unrolled_triangles4.nbytes )
+            #self.unrolled_vertices.bind_to_texref_ext( self.vertices_texture_ref )
+            self.vertices_texture_ref.set_address( self.unrolled_vertices4.gpudata, self.unrolled_vertices4.nbytes )
+            print "[BOUND TO TEXTURE MEMORY]"
+            print "Nodes: ",self.unrolled_nodes.nbytes/1.0e3," kbytes"
+            print "Extra nodes: ",self.unrolled_extra_nodes.nbytes/1.0e3," kbytes"
+            print "Triangles: ",self.unrolled_triangles4.nbytes/1.0e3," kbytes"
+            print "Vertices: ",self.unrolled_vertices4.nbytes/1.0e3," kbytes"
+            print "Total: ",(self.unrolled_nodes.nbytes+self.unrolled_extra_nodes.nbytes+self.unrolled_triangles4.nbytes+self.unrolled_vertices4.nbytes)/1.0e3,"kbytes"
+            self.node_texture_ref_bound = True
+
+        # setup queue
         maxqueue = nphotons
         step = 0
         input_queue = np.empty(shape=maxqueue+1, dtype=np.uint32)
@@ -161,6 +200,7 @@ class GPUPhotons(object):
             iuse_weights = 0
 
         adapt_factor = 1.0
+        start_prop = time.time()
         while step < max_steps:
             # Just finish the rest of the steps if the # of photons is low
             #if nphotons < nthreads_per_block * 16 * 8 or use_weights:
@@ -172,7 +212,7 @@ class GPUPhotons(object):
             start_step = time.time()
             for first_photon, photons_this_round, blocks in \
                     chunk_iterator(nphotons, nthreads_per_block, max( int(adapt_factor*max_blocks), 1 )):
-                print nphotons, nthreads_per_block, max_blocks," : ",first_photon, photons_this_round, blocks, adapt_factor
+                #print nphotons, nthreads_per_block, max_blocks," : ",first_photon, photons_this_round, blocks, adapt_factor
                 start_chunk = time.time()
                 if api.is_gpu_api_cuda():
                     self.gpu_funcs.propagate(np.int32(first_photon), np.int32(photons_this_round), 
@@ -182,14 +222,14 @@ class GPUPhotons(object):
                                              gpu_geometry.gpudata, block=(nthreads_per_block,1,1), grid=(blocks, 1))
                     cuda.Context.get_current().synchronize()
                 elif api.is_gpu_api_opencl():
-                    self.gpu_funcs.propagate( comqueue, (photons_this_round,1,1), (nthreads_per_block, 1,1),
+                    self.gpu_funcs.propagate( comqueue, (photons_this_round,1,1), None,
                                               np.int32(first_photon), np.int32(photons_this_round),
                                               input_queue_gpu.data, output_queue_gpu.data,
                                               rng_states.data, 
                                               self.pos.data, self.dir.data, self.wavelengths.data, self.pol.data, self.t.data, 
                                               self.flags.data, self.last_hit_triangles.data, self.weights.data,
                                               np.int32(nsteps), np.int32(iuse_weights), np.int32(scatter_first),
-                                              gpu_geometry.world_scale, gpu_geometry.world_origin_gpu.data,  np.int32(len(gpu_geometry.nodes)),
+                                              gpu_geometry.world_scale, gpu_geometry.world_origin.data,  np.int32(len(gpu_geometry.nodes)),
                                               gpu_geometry.material_data['n'], gpu_geometry.material_data['step'], gpu_geometry.material_data["wavelength0"],
                                               gpu_geometry.vertices.data, gpu_geometry.triangles.data,
                                               gpu_geometry.material_codes.data, gpu_geometry.colors.data,
@@ -203,20 +243,20 @@ class GPUPhotons(object):
                                               gpu_geometry.surface_data['reflect_diffuse'].data, gpu_geometry.surface_data['reflect_specular'].data,
                                               gpu_geometry.surface_data['eta'].data, gpu_geometry.surface_data['k'].data, gpu_geometry.surface_data['reemission_cdf'].data,
                                               gpu_geometry.surface_data['model'].data, gpu_geometry.surface_data['transmissive'].data, gpu_geometry.surface_data['thickness'].data,
-                                              g_times_l=False ).wait()
+                                              g_times_l=True ).wait()
                 end_chunk = time.time()
                 chunk_time = end_chunk-start_chunk
-                print "chunk time: ",chunk_time
+                #print "chunk time: ",chunk_time
                 if chunk_time>2.5:
                     adapt_factor *= 0.5
             step += nsteps
             scatter_first = 0 # Only allow non-zero in first pass
             end_step = time.time()
-            print "step time: ",end_step-start_step
+            #print "step time: ",end_step-start_step
             
             if step < max_steps:
                 start_requeue = time.time()
-                print "reset photon queues"
+                #print "reset photon queues"
                 if api.is_gpu_api_cuda():
                     #temp = input_queue_gpu
                     #input_queue_gpu = output_queue_gpu
@@ -237,9 +277,9 @@ class GPUPhotons(object):
                     input_queue_gpu.set( temp_out[1:], queue=comqueue ) # set the input queue to have index of photons still need to be run
                     output_queue_gpu[:1].set( np.ones(shape=1,dtype=np.uint32), queue=comqueue ) # reset first instance to be one
                 end_requeue = time.time()
-                print "re-queue time: ",end_requeue-start_requeue
-
-        print "flag check"
+                #print "re-queue time: ",end_requeue-start_requeue
+        end_prop = time.time()
+        print "propagation time: ",end_prop-start_prop," secs"
         end_flags = self.flags.get()
         end_flag = np.max(end_flags)
         if end_flag & (1 << 31):

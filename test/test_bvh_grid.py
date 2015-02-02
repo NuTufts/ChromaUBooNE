@@ -16,7 +16,7 @@ import numpy as np
 def build_simple_bvh(degree):
     #mesh = chroma.models.lionsolid()
     mesh = chroma.models.companioncube()
-    bvh = make_recursive_grid_bvh(mesh, degree)
+    bvh = make_recursive_grid_bvh(mesh, degree, save_morton_codes="mortonout.cu.nudot.txt")
     #bvh = make_simple_bvh(mesh, degree)
     
     nodes = bvh.nodes
@@ -38,6 +38,8 @@ if __name__ == "__main__":
     context = cutools.create_cuda_context()
     bvh = build_simple_bvh(3)
     print bvh.layer_bounds
-    from NodeDAR import NodeDSARtree
+    for ilayer in xrange(len(bvh.layer_bounds)):
+        print bvh.nodes[ bvh.layer_bounds[ilayer]:bvh.layer_bounds[ilayer+1] ]
+    from chroma.bvh.NodeDSAR import NodeDSARtree
     tree = NodeDSARtree( bvh )
     context.pop()
