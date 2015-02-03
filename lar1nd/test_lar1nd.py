@@ -46,7 +46,7 @@ class TestUbooneDetector(unittest.TestCase):
         self.geo = ubooneDet( daefile, detector_volumes=["vollightguidedetector"],
                               acrylic_detect=True, acrylic_wls=False,
                               read_bvh_cache=True, cache_dir="./lar1nd_cache")
-        self.sim = Simulation(self.geo, geant4_processes=0, nthreads_per_block=256, max_blocks=1000)
+        self.sim = Simulation(self.geo, geant4_processes=0, nthreads_per_block=192, max_blocks=1024)
 
     @unittest.skip('skipping testDet')
     def testDet(self):
@@ -73,7 +73,7 @@ class TestUbooneDetector(unittest.TestCase):
     def testPhotonBomb(self):
 
         # Run only one photon at a time
-        nphotons = 50000
+        nphotons = 256*1000
         #nphotons = 7200000
 
         dphi = np.random.uniform(0,2.0*np.pi, nphotons)
@@ -108,7 +108,7 @@ class TestUbooneDetector(unittest.TestCase):
             #print ev.channels.q
             #print ev.channels.t
             cycles += 1
-            if True:
+            if False:
                 # Fill Tree
                 #print "save info for ",len(ev.photons_end)
                 for photon in ev.photons_end:

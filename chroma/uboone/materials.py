@@ -5,6 +5,7 @@ import numpy as np
 # properties required by the MicroBooNE detector
 
 materialnames = ["LAr",                       # liquid argon [ may have its own module one day ]
+                 "ArGas",                     # gaseous argon
                  "Titanium",                  # for the wires (fancy)
                  "STEEL_STAINLESS_Fe7Cr2Ni",  # cryostat walls
                  "Acrylic",                   # wavelength shifting plates
@@ -65,6 +66,13 @@ def load_lar_material_info( matclass ):
     matclass.set( 'refractive_index', lar_refractive_index[:,1], lar_refractive_index[:,0] )
     matclass.set( 'scattering_length', lar_scattering_length[:,1], lar_scattering_length[:,0] )
     matclass.set( 'absorption_length', 20000.0 ) # mm
+
+# --------------------------------------------------------------------------------
+# Gaseous Argon
+def load_argas_material_info( matclass ):
+    matclass.set('refractive_index', 1.0)
+    matclass.absorption_length = np.array( 1.0e6 )
+    matclass.set('scattering_length', 1000.0 )
 
 # --------------------------------------------------------------------------------
 # Acrylic
@@ -156,6 +164,7 @@ def load_uboone_materials( c2cclass ):
     if not isinstance(c2class, ColladaToChroma):
         raise TypeError('input to function should be instance of ColladaToChroma')
     loaders = { "LAr":load_lar_material_info,
+                "ArGas":load_argas_material_info,
                 "Titanium":load_titanium_material_info,
                 "Acrylic":load_acrylic_material_info,
                 "Glass":load_glass_material_info,

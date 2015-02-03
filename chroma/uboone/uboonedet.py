@@ -64,7 +64,7 @@ class ubooneDet( Detector ):
         print "number of surface indicies: ",len(self.surface_index)
 
         # Finally, setup channels
-        print "SEUTP UBOONE CHANNELS from solids list: ",len(self.solids)
+        print "SETUP UBOONE CHANNELS from solids list: ",len(self.solids)
         self.solid_id_to_channel_index.resize( len(self.solids) )
         self.solid_id_to_channel_index.fill(-1) # default no channels
         self.solid_id_to_channel_id.resize( len(self.solids) )

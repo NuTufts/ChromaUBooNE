@@ -149,7 +149,7 @@ class GPUPhotons(object):
         """
         nphotons = self.pos.size
         # bind node texture reference
-        if not self.node_texture_ref_bound:
+        if api.is_gpu_api_cuda() and not self.node_texture_ref_bound:
             # we have to unroll, as pycuda doesn't seem to support vector times right now for binding
             self.unrolled_nodes       = ga.to_gpu( gpu_geometry.nodes.get().ravel().view( np.uint32 ) )
             self.unrolled_extra_nodes = ga.to_gpu( gpu_geometry.extra_nodes.ravel().view( np.uint32 ) )

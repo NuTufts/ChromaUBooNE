@@ -27,7 +27,7 @@ class TestUbooneDetector(unittest.TestCase):
                               acrylic_detect=True, acrylic_wls=False,  
                               read_bvh_cache=True, cache_dir="./uboone_cache",
                               dump_node_info=True)
-        self.sim = Simulation(self.geo, geant4_processes=0)
+        self.sim = Simulation(self.geo, geant4_processes=0, nthreads_per_block=192, max_blocks=1024)
         self.origin = self.geo.bvh.world_coords.world_origin
 
 
@@ -63,8 +63,8 @@ class TestUbooneDetector(unittest.TestCase):
     def testPhotonBomb(self):
 
         # Run only one photon at a time
-        nphotons = 7200000
-        #nphotons = 256*10000
+        #nphotons = 7200000
+        nphotons = 256*100
         #nphotons = 256*10
 
         dphi = np.random.uniform(0,2.0*np.pi, nphotons)
