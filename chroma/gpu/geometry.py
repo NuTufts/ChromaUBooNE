@@ -444,6 +444,12 @@ class GPUGeometry(object):
             k_gpu = ga.to_gpu(k)
             reemission_cdf = self._interp_material_property(wavelengths, surface.reemission_cdf)
             reemission_cdf_gpu = ga.to_gpu(reemission_cdf)
+            nplanes_np  = np.array( surface.nplanes, dtype=np.float32 )
+            nplanes_gpu = ga.to_gpu( nplanes_np )
+            wire_pitch_np = np.array( surface.wire_pitch, dtype=np.float32 )
+            wire_pitch_gpu = ga.to_gpu( wire_pitch_np )
+            wire_diameter_np = np.array( surface.wire_diameter, dtype=np.float32 )
+            wire_diameter_gpu = ga.to_gpu( wire_diameter_np )
 
             surface_data.append(detect_gpu)
             surface_data.append(absorb_gpu)
@@ -453,6 +459,9 @@ class GPUGeometry(object):
             surface_data.append(eta_gpu)
             surface_data.append(k_gpu)
             surface_data.append(reemission_cdf_gpu)
+            surface_data.append( nplanes_gpu )
+            surface_data.append( wire_pitch_gpu )
+            surface_data.append( wire_diameter_gpu )
 
             surface_gpu = \
                 make_gpu_struct(surface_struct_size,

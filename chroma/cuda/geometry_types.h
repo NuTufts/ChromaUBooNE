@@ -13,7 +13,7 @@ struct Material
     float wavelength0;
 };
 
-enum { SURFACE_DEFAULT, SURFACE_COMPLEX, SURFACE_WLS };
+enum { SURFACE_DEFAULT, SURFACE_COMPLEX, SURFACE_WLS, SURFACE_WIREPLANE }; // models
 
 struct Surface
 {
@@ -32,6 +32,9 @@ struct Surface
     float step;
     float wavelength0;
     float thickness;
+    float nplanes;
+    float wire_diameter;
+    float wire_pitch;
 };
 
 struct Triangle

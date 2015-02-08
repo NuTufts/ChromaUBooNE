@@ -63,17 +63,19 @@ struct State
 
 enum
 {
-    NO_HIT           = 0x1 << 0,
-    BULK_ABSORB      = 0x1 << 1,
-    SURFACE_DETECT   = 0x1 << 2,
-    SURFACE_ABSORB   = 0x1 << 3,
-    RAYLEIGH_SCATTER = 0x1 << 4,
-    REFLECT_DIFFUSE  = 0x1 << 5,
-    REFLECT_SPECULAR = 0x1 << 6,
-    SURFACE_REEMIT   = 0x1 << 7,
-    SURFACE_TRANSMIT = 0x1 << 8,
-    BULK_REEMIT      = 0x1 << 9,
-    NAN_ABORT        = 0x1 << 31
+    NO_HIT            = 0x1 << 0,
+    BULK_ABSORB       = 0x1 << 1,
+    SURFACE_DETECT    = 0x1 << 2,
+    SURFACE_ABSORB    = 0x1 << 3,
+    RAYLEIGH_SCATTER  = 0x1 << 4,
+    REFLECT_DIFFUSE   = 0x1 << 5,
+    REFLECT_SPECULAR  = 0x1 << 6,
+    SURFACE_REEMIT    = 0x1 << 7,
+    SURFACE_TRANSMIT  = 0x1 << 8,
+    BULK_REEMIT       = 0x1 << 9,
+    WIREPLANE_TRANS   = 0x1 << 10,
+    WIREPLANE_ABSORB  = 0x1 << 11,
+    NAN_ABORT         = 0x1 << 31
 }; // processes
 
 
@@ -750,6 +752,40 @@ propagate_at_wls(Photon &p, State &s, curandState &rng, Surface *surface, bool u
     }
 } // propagate_at_wls
 
+
+__device__ int
+propagate_at_wireplane(Photon &p, State &s, curandState &rng, Surface *surface, bool use_weights=false)
+{
+  float3 nv = s.surface_normal*p.direction;
+  float costh1 = nv.x+nv.y+nv.z;
+  float costh2 = -costh1;
+  float costh = fmaxf( costh1, costh2); // I want the positive value
+  float transmission = costh - surface->wire_diameter/surface->wire_pitch;
+  transmission = fmaxf( 0.0f, transmission );
+  float ptrans = powf( transmission, surface->nplanes );
+  // clamp between 0 and 1
+  ptrans = fmaxf( 0.0, ptrans );
+  ptrans = fminf( 1.0, ptrans );
+
+  float prob = curand_uniform(&rng);
+
+  if ( prob>ptrans ) {
+    // hits wire plane
+    // absorb or reflect
+    //float absorb = interp_property(surface, p.wavelength, surface->absorb);
+    //float reflect_diffuse = interp_property(surface, p.wavelength, surface->reflect_diffuse);
+    //float reflect_specular = interp_property(surface, p.wavelength, surface->reflect_specular);    
+    // for now absorb only. in future have a model for wire plane reflect (scrambling)
+    p.history |= WIREPLANE_ABSORB;
+    return BREAK;
+  }
+  else {
+    p.history |= WIREPLANE_TRANS;
+    return CONTINUE;
+  }
+
+}
+
 __device__ int
 propagate_at_surface(Photon &p, State &s, curandState &rng, Geometry *geometry,
                      bool use_weights=false)
@@ -757,9 +793,11 @@ propagate_at_surface(Photon &p, State &s, curandState &rng, Geometry *geometry,
     Surface *surface = geometry->surfaces[s.surface_index];
 
     if (surface->model == SURFACE_COMPLEX)
-        return propagate_complex(p, s, rng, surface, use_weights);
+      return propagate_complex(p, s, rng, surface, use_weights);
     else if (surface->model == SURFACE_WLS)
-        return propagate_at_wls(p, s, rng, surface, use_weights);
+      return propagate_at_wls(p, s, rng, surface, use_weights);
+    else if (surface->model == SURFACE_WIREPLANE )
+      return propagate_at_wireplane( p, s, rng, surface, use_weights );
     else 
     {
         // use default surface model: do a combination of specular and

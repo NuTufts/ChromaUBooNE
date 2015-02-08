@@ -239,7 +239,7 @@ intersect_mesh_nvidia( const float3 &position, const float3 &direction, const fl
   unsigned int tri_count = 0;
   unsigned int hitsame = 0 ;
   int maxcurr = 0 ;
-  float dist_to_tri = -1.0f; // distance
+  //float dist_to_tri = -1.0f; // distance
   float tmaxbox = -1.0f;
   float tminbox = -1.0f;
   //hitT = 0.0f; // min_distance = -1.0f;
