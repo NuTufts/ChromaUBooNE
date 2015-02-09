@@ -13,7 +13,7 @@ struct Material
     float wavelength0;
 };
 
-enum { SURFACE_DEFAULT, SURFACE_COMPLEX, SURFACE_WLS, SURFACE_WIREPLANE }; // models
+enum { SURFACE_DEFAULT=0, SURFACE_COMPLEX, SURFACE_WLS, SURFACE_WIREPLANE }; // models
 
 struct Surface
 {

@@ -245,6 +245,7 @@ class Surface(NPYCacheable):
     SURFACE_DEFAULT = 0
     SURFACE_COMPLEX = 1
     SURFACE_ABSORB  = 2
+    SURFACE_WIREPLANE = 3
     def __init__(self, name='none', model=0):
         self.name = name
         self.model = model
@@ -257,12 +258,15 @@ class Surface(NPYCacheable):
         self.set('eta', 0)
         self.set('k', 0)
         self.set('reemission_cdf', 0)
-        self.set('nplanes',0)
-        self.set('wire_pitch',0)
-        self.set('wire_diameter',0)
+        #self.set('nplanes',0)
+        #self.set('wire_pitch',0)
+        #self.set('wire_diameter',0)
 
         self.thickness = 0.0
         self.transmissive = 0
+        self.nplanes = 0.0
+        self.wire_pitch = 0.0
+        self.wire_diameter = 0.0
 
     def set(self, name, value, wavelengths=standard_wavelengths):
         if np.iterable(value):

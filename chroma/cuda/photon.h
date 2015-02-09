@@ -757,9 +757,10 @@ __device__ int
 propagate_at_wireplane(Photon &p, State &s, curandState &rng, Surface *surface, bool use_weights=false)
 {
   float3 nv = s.surface_normal*p.direction;
-  float costh1 = nv.x+nv.y+nv.z;
-  float costh2 = -costh1;
-  float costh = fmaxf( costh1, costh2); // I want the positive value
+  float costh = fabsf(nv.x+nv.y+nv.z);
+  //float costh2 = -costh1;
+  //float costh = fmaxf( costh1, costh2); // I want the positive value
+  float wire_ratio = surface->wire_diameter/surface->wire_pitch;
   float transmission = costh - surface->wire_diameter/surface->wire_pitch;
   transmission = fmaxf( 0.0f, transmission );
   float ptrans = powf( transmission, surface->nplanes );
@@ -768,7 +769,7 @@ propagate_at_wireplane(Photon &p, State &s, curandState &rng, Surface *surface, 
   ptrans = fminf( 1.0, ptrans );
 
   float prob = curand_uniform(&rng);
-
+  //printf( "prob>ptrans: %.2f > %.2f, %.4f, %.2f %.2f\n",prob,ptrans, transmission, costh, wire_ratio );
   if ( prob>ptrans ) {
     // hits wire plane
     // absorb or reflect

@@ -649,6 +649,27 @@ class ColladaToChroma(object):
             self.add_bvh()
         return self.chroma_geometry
 
+    def convert_geometry_partial(self,nodes=None):
+        """ 
+        splitting the conversion in order to provide a point at which to hack the geometry.
+        this includes removing sibling overlapping triangles or defining wire meshes.
+        """
+        log.debug("convert_geometry")
+
+        self.convert_materials()
+        self.convert_opticalsurfaces()
+        self.convert_geometry_traverse(nodes)
+
+        return self.chroma_geometry
+
+    def finish_converting_geometry(self):
+        self.convert_flatten()
+        self.convert_make_maps()
+
+        if self.bvh:
+            self.add_bvh()
+        return self.chroma_geometry
+
     def make_chroma_material_map(self, chroma_geometry):
         """
         Curiously the order of chroma_geometry.unique_materials on different invokations is 

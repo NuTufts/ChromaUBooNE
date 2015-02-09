@@ -9,6 +9,7 @@ from unittest_find import unittest
 import numpy as np
 from chroma.sim import Simulation
 from chroma.event import Photons
+from chroma.geometry import Surface
 import chroma.event as event
 from chroma.uboone.uboonedet import ubooneDet
 from chroma.gpu.photon import GPUPhotons
@@ -44,12 +45,36 @@ if has_root:
             self.surface_absorb   = 0
             self.surface_reemit   = 0
 
+
+uboone_wireplane = Surface( 'uboone_wireplane' )
+uboone_wireplane.nplanes = 3.0
+uboone_wireplane.wire_pitch = 0.3
+uboone_wireplane.wire_diameter = 0.015
+uboone_wireplane.transmissive = 1
+uboone_wireplane.model = Surface.SURFACE_WIREPLANE
+
+
+def add_wireplane_surface( solid ):
+    # function detector class will use to add a wireplane surface to the geometry
+    # set surface for triangles on x=-1281.0 plane
+    for n,triangle in enumerate(solid.mesh.triangles):
+        nxplane = 0
+        for ivert in triangle:
+            if solid.mesh.vertices[ivert,0]==-1281.0:
+                nxplane += 1
+        if nxplane==3:
+            print [ solid.mesh.vertices[x] for x in triangle ]
+            solid.surface[ n ] = uboone_wireplane
+            solid.unique_surfaces = np.unique( solid.surface )
+
 class TestUbooneDetector(unittest.TestCase):
     def setUp(self):
         # UBOONE
         #daefile = "../gdml/microboone_nowires_chroma_simplified.dae"
         daefile = "dae/microboone_32pmts_nowires_cryostat.dae"
+        #daefile = "dae/microboone_32pmts_nowires_cryostat_weldwireplanes.dae"
         self.geo = ubooneDet( daefile, detector_volumes=["vol_PMT_AcrylicPlate","volPaddle_PMT"],
+                              wireplane_volumes=[('volTPCPlane_PV0x7f868ac5ef50',add_wireplane_surface)],
                               acrylic_detect=True, acrylic_wls=False,  
                               read_bvh_cache=True, cache_dir="./uboone_cache",
                               dump_node_info=True)
@@ -90,7 +115,7 @@ class TestUbooneDetector(unittest.TestCase):
 
         # Run only one photon at a time
         #nphotons = 7200000
-        nphotons = 256*1000
+        nphotons = 256*10000
         #nphotons = 256*10
 
         dphi = np.random.uniform(0,2.0*np.pi, nphotons)
@@ -120,7 +145,7 @@ class TestUbooneDetector(unittest.TestCase):
             root_tree = Tree("PhotonData", model=PhotonData )
             root_tree.reset()
 
-        for ev in self.sim.simulate( (photons for i in xrange(1)), keep_photons_end=True, keep_photons_beg=False):
+        for ev in self.sim.simulate( (photons for i in xrange(1)), keep_photons_end=True, keep_photons_beg=False, max_steps=100):
             ev.photons_end.dump_history()
             lht = ev.photons_end[0].last_hit_triangles
             nhits = ev.channels.hit[ np.arange(0,30)[:] ]
