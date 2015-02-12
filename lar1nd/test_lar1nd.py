@@ -7,6 +7,7 @@ api.use_cuda()
 from chroma.sim import Simulation
 from chroma.event import Photons
 import chroma.event as event
+from chroma.geometry import Surface
 from chroma.uboone.uboonedet import ubooneDet
 try:
     import ROOT as rt
@@ -39,10 +40,30 @@ if has_root:
             self.surface_absorb   = 0
             self.surface_reemit   = 0
 
+lar1nd_wireplane = Surface( 'lar1nd_wireplane' )
+lar1nd_wireplane.nplanes = 3.0
+lar1nd_wireplane.wire_pitch = 0.3
+lar1nd_wireplane.wire_diameter = 0.015
+lar1nd_wireplane.transmissive = 1
+lar1nd_wireplane.model = Surface.SURFACE_WIREPLANE
+
+def add_wireplane_surface( solid ):
+    # function detector class will use to add a wireplane surface to the geometry
+    # set surface for triangles on x=-1281.0 plane
+    for n,triangle in enumerate(solid.mesh.triangles):
+        nxplane = 0
+        for ivert in triangle:
+            if solid.mesh.vertices[ivert,0]==-1281.0:
+                nxplane += 1
+        if nxplane==3:
+            print [ solid.mesh.vertices[x] for x in triangle ]
+            solid.surface[ n ] = uboone_wireplane
+            solid.unique_surfaces = np.unique( solid.surface )
+
 class TestUbooneDetector(unittest.TestCase):
     def setUp(self):
-        daefile = "lar1nd_lightguides_nowires_chroma.dae"
-        #daefile = "lar1nd_chroma.dae"
+        daefile = "dae/lar1nd_lightguides_nowires_chroma.dae" # without wires
+        #daefile = "dae/lar1nd_chroma.dae" # with wires
         self.geo = ubooneDet( daefile, detector_volumes=["vollightguidedetector"],
                               acrylic_detect=True, acrylic_wls=False,
                               read_bvh_cache=True, cache_dir="./lar1nd_cache")
@@ -73,7 +94,7 @@ class TestUbooneDetector(unittest.TestCase):
     def testPhotonBomb(self):
 
         # Run only one photon at a time
-        nphotons = 256*1000
+        nphotons = 256*100
         #nphotons = 7200000
 
         dphi = np.random.uniform(0,2.0*np.pi, nphotons)
