@@ -49,15 +49,19 @@ lar1nd_wireplane.model = Surface.SURFACE_WIREPLANE
 
 def add_wireplane_surface( solid ):
     # function detector class will use to add a wireplane surface to the geometry
-    # set surface for triangles on x=-1281.0 plane
+    # LAr1ND has two drift regions, so we need two planes
+    # set surface for triangles on x=-2023.25 and x=2023.25 planes
+    
     for n,triangle in enumerate(solid.mesh.triangles):
+        #print [ solid.mesh.vertices[x] for x in triangle ] # for debug
         nxplane = 0
         for ivert in triangle:
-            if solid.mesh.vertices[ivert,0]==-1281.0:
+            if solid.mesh.vertices[ivert,0]==-2023.25 or solid.mesh.vertices[ivert,0]==2023.25:
                 nxplane += 1
-        if nxplane==3:
+        # if the numbr of vertices have the correct x value, we say we have the right traingle
+        if nxplane==3: 
             print [ solid.mesh.vertices[x] for x in triangle ]
-            solid.surface[ n ] = uboone_wireplane
+            solid.surface[ n ] = lar1nd_wireplane
             solid.unique_surfaces = np.unique( solid.surface )
 
 class TestUbooneDetector(unittest.TestCase):
@@ -65,8 +69,10 @@ class TestUbooneDetector(unittest.TestCase):
         daefile = "dae/lar1nd_lightguides_nowires_chroma.dae" # without wires
         #daefile = "dae/lar1nd_chroma.dae" # with wires
         self.geo = ubooneDet( daefile, detector_volumes=["vollightguidedetector"],
+                              wireplane_volumes=[('volTPCPlaneVert_PV0x7fdcd2728c70',add_wireplane_surface)],
                               acrylic_detect=True, acrylic_wls=False,
-                              read_bvh_cache=True, cache_dir="./lar1nd_cache")
+                              read_bvh_cache=True, cache_dir="./lar1nd_cache",
+                              dump_node_info=True )
         self.sim = Simulation(self.geo, geant4_processes=0, nthreads_per_block=192, max_blocks=1024)
 
     @unittest.skip('skipping testDet')
@@ -94,7 +100,7 @@ class TestUbooneDetector(unittest.TestCase):
     def testPhotonBomb(self):
 
         # Run only one photon at a time
-        nphotons = 256*100
+        nphotons = 256*1000
         #nphotons = 7200000
 
         dphi = np.random.uniform(0,2.0*np.pi, nphotons)
