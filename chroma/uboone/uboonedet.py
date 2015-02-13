@@ -79,8 +79,7 @@ class ubooneDet( Detector ):
         for id, mats in enumerate( zip(self.material1_index, self.material2_index) ):
             existing_surface = geom.surface_index[ id ]
             if existing_surface!=-1:
-                print "Triangle %d already has specified surface: ",geom.unique_surfaces[ existing_surface ]
-                #surface_indices.append( existing_surface )
+                print "Triangle %d already has specified surface: "%(id),geom.unique_surfaces[ existing_surface ]
                 surface = geom.unique_surfaces[ existing_surface ]
             else:
                 surface = uboonesurfaces.get_boundary_surface( self.unique_materials[mats[0]].name, self.unique_materials[mats[1]].name )
@@ -96,7 +95,7 @@ class ubooneDet( Detector ):
 
 
         # Finally, setup channels
-        print "SETUP UBOONE CHANNELS from solids list: ",len(self.solids)
+        print "SETUP UBOONE CHANNELS from solids list (",len(self.solids)," solids)"
         self.solid_id_to_channel_index.resize( len(self.solids) )
         self.solid_id_to_channel_index.fill(-1) # default no channels
         self.solid_id_to_channel_id.resize( len(self.solids) )
@@ -129,11 +128,10 @@ class ubooneDet( Detector ):
                                 cache_dir=cache_dir, bvh_method=bvh_method, target_degree=bvh_target_degree,
                                 cuda_device=cuda_device, cl_device=cl_device)
 
-        # This tree helps with the navigation of the node tree
-        #self.node_dsar_tree = NodeDSARtree( self.bvh )
         self._setup_photodetectors()
 
         if calculate_ndsar_tree:
+            # This tree helps with the navigation of the node tree (deprecated)
             print "Calculate node DSAR tree ...",
             sndsar = time.time()
             self.node_dsar_tree = NodeDSARtree( self.bvh )

@@ -66,7 +66,7 @@ setup(
     package_data = { 'chroma':['models/*.stl*',
                                'cuda/*.cu','cuda/*.h',
                                'cl/*.cl','cl/*.h','cl/Random123/*.h','cl/Random123/conventional/*.h','cl/Random123/features/*.h', 
-                               'uboone/*.dat'],
+                               'uboone/*.dat','uboone/*.cu','uboone/*.cl'],
                      },
     scripts = ['bin/chroma-sim', 'bin/chroma-cam',
                'bin/chroma-geo', 'bin/chroma-bvh',

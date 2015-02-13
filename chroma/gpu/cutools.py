@@ -1,3 +1,4 @@
+import os
 import logging
 log = logging.getLogger(__name__)
 import numpy as np
@@ -34,8 +35,12 @@ def get_cu_module(name, options=None, include_source_directory=True, template_un
     if include_source_directory:
         options += ['-I' + srcdir]
 
-    with open('%s/%s' % (srcdir, name)) as f:
-        source = f.read()
+    if os.path.exists( name ):
+        with open(name) as f:
+            source = f.read()
+    else:
+        with open('%s/%s' % (srcdir, name)) as f:
+            source = f.read()
 
     if template_uncomment is not None:
         source = template_substitute( source, template_uncomment )

@@ -32,7 +32,8 @@ def pick_seed():
 
 class Simulation(object):
     def __init__(self, detector, seed=None, cuda_device=None, cl_device=None,
-                 geant4_processes=4, nthreads_per_block=64, max_blocks=1024):
+                 geant4_processes=4, nthreads_per_block=64, max_blocks=1024,
+                 user_daq=None):
         self.detector = detector
 
         self.nthreads_per_block = nthreads_per_block
@@ -55,7 +56,10 @@ class Simulation(object):
             self.context = cutools.create_cuda_context(cuda_device)
             if hasattr(detector, 'num_channels'):
                 self.gpu_geometry = GPUDetector(detector)
-                self.gpu_daq = GPUDaq(self.gpu_geometry)
+                if user_daq==None:
+                    self.gpu_daq = GPUDaq(self.gpu_geometry)
+                else:
+                    self.gpu_daq = user_daq.build_daq( self.gpu_geometry ) # factory interface
                 self.gpu_pdf = GPUPDF()
                 self.gpu_pdf_kernel = GPUKernelPDF()
             else:
@@ -92,6 +96,8 @@ class Simulation(object):
         except TypeError:
             first_element, iterable = iterable, [iterable]
 
+
+        t_photon_start = time.time()
         if isinstance(first_element, event.Event):
             iterable = self.photon_generator.generate_events(iterable)
         elif isinstance(first_element, event.Photons):
@@ -99,6 +105,8 @@ class Simulation(object):
         elif isinstance(first_element, event.Vertex):
             iterable = (event.Event(primary_vertex=vertex, vertices=[vertex]) for vertex in iterable)
             iterable = self.photon_generator.generate_events(iterable)
+        t_photon_end = time.time()
+        print "Photon Gen Time: ",t_photon_end-t_photon_start," sec"
 
         for ev in iterable:
             gpu_photons = GPUPhotons(ev.photons_beg,cl_context=self.context)
@@ -116,10 +124,13 @@ class Simulation(object):
 
             # Skip running DAQ if we don't have one
             if hasattr(self, 'gpu_daq') and run_daq:
+                t_daq_start = time.time()
                 self.gpu_daq.begin_acquire( cl_context=self.context )
                 self.gpu_daq.acquire(gpu_photons, self.rng_states, nthreads_per_block=self.nthreads_per_block, max_blocks=self.max_blocks, cl_context=self.context )
                 gpu_channels = self.gpu_daq.end_acquire( cl_context=self.context )
                 ev.channels = gpu_channels.get()
+                t_daq_end = time.time()
+                print "DAQ readout time: ",t_daq_end-t_daq_start," sec"
 
             yield ev
 

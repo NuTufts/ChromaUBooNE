@@ -338,6 +338,7 @@ class Geometry(NPYCacheable):
 
         # Don't run this function twice!
         if hasattr(self, 'mesh'):
+            print "WOAH. Already flattened geometry! Shouldn't do this twice. Everything OK?"
             return
 
         nv = np.cumsum([0] + [len(solid.mesh.vertices) for solid in self.solids])
