@@ -51,8 +51,8 @@ See the original chroma website: http://chroma.bitbucket.org
 ### My experiences
 
 I really love the idea of ShrinkWrap, I really do.  But I am neither
-lucky enough nor smart enough to get it work.  For me, what worked was
-I reduced the number of components to install using the chroma_deps
-setup.py and manual installed the other dependencies.  For a diary of 
-my installation-from-scratch experience on two different linux machines
-where I did not have root priveledges see INSTALLATION_DIARY.md.
+lucky enough nor smart enough to get it to work out-of-the-box.  For me, what worked was
+I reduced the number of components to install in the chroma_deps
+setup.py script and manually installed the other dependencies.  For a diary summarizing what I installed
+(and short notes on how) during my from-scratch effort on linux machines
+where I did not have root priveledges, see INSTALLATION_DIARY.md.
