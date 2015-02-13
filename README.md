@@ -23,6 +23,7 @@ Actually, this is a fork of Simon C. Blyth's fork of Chroma.
 * api.py also has functions to test which API
 * opencl has some big differences that affect chroma: no device-mapped memory, no built-in random number generator, and different struct creation/definition.
 * because of these differences, port was not done so cleanly.  many modules have been reorganized and classes changed. merging this fork may require coordination.
+* however, I did try to keep changes to orginal chroma modules minial. Typically, what was added were one or more keyword arguments.
 
 ### BVH Precision differences between opencl and cuda:
 
