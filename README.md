@@ -43,3 +43,16 @@ Actually, this is a fork of Simon C. Blyth's fork of Chroma.
 * Random123 is in principle stateless. Created state vector in gpu/clrandstate.py. Implemented uniform sampler in cl/random.cl. 
 Require state, because being able to reproduce results is a requirement for particle physics MC.
 * tests, cltest/test_randomgen.py and cltest/test_sample_cdf.py, generate flat and gaussian distribution, respectively. Seems to work.
+
+## Installation
+
+See the original chroma website: http://chroma.bitbucket.org
+
+### My experiences
+
+I really love the idea of ShrinkWrap, I really do.  But I am neither
+lucky enough nor smart enough to get it work.  For me, what worked was
+I reduced the number of components to install using the chroma_deps
+setup.py and manual installed the other dependencies.  For a diary of 
+my installation-from-scratch experience on two different linux machines
+where I did not have root priveledges see INSTALLATION_DIARY.md.
