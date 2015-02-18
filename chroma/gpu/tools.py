@@ -71,7 +71,7 @@ def get_source(name):
 def get_context(*args, **kwargs):
     if gpuapi.is_gpu_api_cuda():
         #return cutools.get_cuda_context(device_id,context_flags)
-        return cutools.get_cuda_context(*args, **kwargs)
+        return cutools.create_cuda_context(*args, **kwargs)
     elif gpuapi.is_gpu_api_opencl():
         #return cltools.create_cl_context(device_id,context_flags)
         return cltools.create_cl_context(*args, **kwargs)

@@ -43,8 +43,8 @@ class GPUPhotons(object):
             self.last_hit_triangles = ga.empty(shape=nphotons*ncopies, dtype=np.int32)
             self.flags = ga.empty(shape=nphotons*ncopies, dtype=np.uint32)
             self.weights = ga.empty(shape=nphotons*ncopies, dtype=np.float32)
-            self.current_node_index = ga.zeros( shape=nphotons*ncopies, dtype=np.uint32 )
-            self.requested_workcode = ga.empty( shape=nphotons*ncopies, dtype=np.uint32 )
+            self.current_node_index = ga.zeros( shape=nphotons*ncopies, dtype=np.uint32 ) # deprecated
+            self.requested_workcode = ga.empty( shape=nphotons*ncopies, dtype=np.uint32 ) # deprecated
         elif api.is_gpu_api_opencl():
             queue = cl.CommandQueue( cl_context )
             self.pos = ga.empty(queue, shape=nphotons*ncopies, dtype=ga.vec.float3)
@@ -55,8 +55,8 @@ class GPUPhotons(object):
             self.last_hit_triangles = ga.empty(queue, shape=nphotons*ncopies, dtype=np.int32)
             self.flags = ga.empty(queue, shape=nphotons*ncopies, dtype=np.uint32)
             self.weights = ga.empty(queue, shape=nphotons*ncopies, dtype=np.float32)
-            self.current_node_index = ga.zeros( queue, shape=nphotons*ncopies, dtype=np.uint32 )
-            self.requested_workcode = ga.empty( queue, shape=nphotons*ncopies, dtype=np.uint32 )
+            self.current_node_index = ga.zeros( queue, shape=nphotons*ncopies, dtype=np.uint32 ) # deprecated
+            self.requested_workcode = ga.empty( queue, shape=nphotons*ncopies, dtype=np.uint32 ) # deprecated
         
         # Assign the provided photons to the beginning (possibly
         # the entire array if ncopies is 1
@@ -71,19 +71,6 @@ class GPUPhotons(object):
 
         if api.is_gpu_api_cuda():
             module = get_module('propagate.cu', options=api_options, include_source_directory=True)
-            self.node_texture_ref       = module.get_texref( "nodevec_tex_ref" )
-            self.node_texture_ref.set_format( cuda.array_format.UNSIGNED_INT32, 4 )
-
-            self.extra_node_texture_ref = module.get_texref( "extra_node_tex_ref" )
-            self.extra_node_texture_ref.set_format( cuda.array_format.UNSIGNED_INT32, 4 )
-
-            self.vertices_texture_ref   = module.get_texref( "verticesvec_tex_ref" )
-            self.vertices_texture_ref.set_format( cuda.array_format.FLOAT, 4 )
-
-            self.triangles_texture_ref   = module.get_texref( "trianglesvec_tex_ref" )
-            self.triangles_texture_ref.set_format( cuda.array_format.UNSIGNED_INT32, 4 )
-
-            self.node_texture_ref_bound = False
         elif  api.is_gpu_api_opencl():
             module = get_module('propagate.cl', cl_context, options=api_options, include_source_directory=True)
         self.gpu_funcs = GPUFuncs(module)
@@ -104,6 +91,26 @@ class GPUPhotons(object):
         # Save the duplication information for the iterate_copies() method
         self.true_nphotons = nphotons
         self.ncopies = ncopies
+
+    def define_texture_references( self ):
+        # unbound texture references declared for use with propagate
+        if api.is_gpu_api_cuda():
+            self.node_texture_ref       = module.get_texref( "nodevec_tex_ref" )
+            self.node_texture_ref.set_format( cuda.array_format.UNSIGNED_INT32, 4 )
+
+            self.extra_node_texture_ref = module.get_texref( "extra_node_tex_ref" )
+            self.extra_node_texture_ref.set_format( cuda.array_format.UNSIGNED_INT32, 4 )
+
+            self.vertices_texture_ref   = module.get_texref( "verticesvec_tex_ref" )
+            self.vertices_texture_ref.set_format( cuda.array_format.FLOAT, 4 )
+
+            self.triangles_texture_ref   = module.get_texref( "trianglesvec_tex_ref" )
+            self.triangles_texture_ref.set_format( cuda.array_format.UNSIGNED_INT32, 4 )
+
+            self.node_texture_ref_bound = False
+        elif api.is_gpu_api_opencl():
+            # texture usage not used at the moment
+            pass
 
     def get(self):
         ncols = 3
@@ -360,8 +367,7 @@ class GPUPhotonsSlice(GPUPhotons):
     is taken from another GPUPhotons instance.
 
     Returned by the GPUPhotons.iterate_copies() iterator.'''
-    def __init__(self, pos, dir, pol, wavelengths, t, last_hit_triangles,
-                 flags, weights):
+    def __init__(self, pos, dir, pol, wavelengths, t, last_hit_triangles, flags, weights):
         '''Create new object using slices of GPUArrays from an instance
         of GPUPhotons.  NOTE THESE ARE NOT CPU ARRAYS!'''
         self.pos = pos
