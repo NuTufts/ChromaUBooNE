@@ -19,7 +19,7 @@ w.addItem(g)
 
 
 import os,sys
-#os.environ['PYOPENCL_CTX']='0:0'
+os.environ['PYOPENCL_CTX']='0:1'
 #os.environ['PYOPENCL_COMPILER_OUTPUT'] = '0'
 #os.environ['CUDA_PROFILE'] = '1'
 
@@ -73,6 +73,12 @@ detector_meshitem.rotate(90, 1, 0, 0 )
 w.addItem( detector_meshitem )
 
 steps = np.load( 'steps.npy' )
+
+# draw steps
+step_plot = gl.GLLinePlotItem( pos=steps[:,0:3], color=(1.0,1.0,1.0,1.0), width=2.0, mode='line_strip' )
+step_plot.rotate(90, 1, 0, 0)
+w.addItem( step_plot )
+
 gpuphotons = GPUPhotonFromSteps( steps, cl_context=sim.context )
 # # Generate photons
 # nphotons = 256*1000
@@ -134,6 +140,7 @@ angle = 2.0
 def update():
     global angle
     detector_meshitem.rotate( angle, 0, 0, 1 )
+    step_plot.rotate( angle, 0, 0, 1 )
     for pos in positions:
         pos.rotate( angle, 0, 0, 1 )
 t = QtCore.QTimer()
