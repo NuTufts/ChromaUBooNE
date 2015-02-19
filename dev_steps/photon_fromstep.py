@@ -171,7 +171,6 @@ class GPUPhotonFromSteps( GPUPhotons ):
                     pos[n,i]  = gapos[n][i]
                     pdir[n,i] = gadir[n][i]
                     pol[n,i]  = gapol[n][i]
-            print pos
         t    = self.t.get().view(np.float32)
         wavelengths = self.wavelengths.get().view(np.float32)
 
