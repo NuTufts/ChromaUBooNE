@@ -154,9 +154,25 @@ class GPUPhotonFromSteps( GPUPhotons ):
 
         
     def get(self):
-        pos  = self.pos.get().ravel().view(np.float32).reshape( self.nphotons, 3 )
-        pdir = self.dir.get().ravel().view(np.float32).reshape( self.nphotons, 3 )
-        pol  = self.pol.get().ravel().view(np.float32).reshape( self.nphotons, 3 )
+        if api.is_gpu_api_cuda():
+            pos  = self.pos.get().ravel().view(np.float32).reshape( self.nphotons, 3 )
+            pdir = self.dir.get().ravel().view(np.float32).reshape( self.nphotons, 3 )
+            pol  = self.pol.get().ravel().view(np.float32).reshape( self.nphotons, 3 )
+        elif api.is_gpu_api_opencl():
+            # need to remove the padding from vectors
+            pos  = np.zeros( shape=(self.nphotons,3), dtype=np.float32 )
+            pdir = np.zeros( shape=(self.nphotons,3), dtype=np.float32 )
+            pol  = np.zeros( shape=(self.nphotons,3), dtype=np.float32 )
+            gapos = self.pos.get()
+            gadir = self.dir.get()
+            gapol = self.pol.get()
+            for n in xrange(0,self.nphotons):
+                for i in xrange(0,3):
+                    pos[n,i]  = gapos[n][i]
+                    pdir[n,i] = gadir[n][i]
+                    pol[n,i]  = gapol[n][i]
+            print pos
         t    = self.t.get().view(np.float32)
         wavelengths = self.wavelengths.get().view(np.float32)
+
         return chroma.event.Photons( pos=pos, dir=pdir, pol=pol, t=t, wavelengths=wavelengths )
