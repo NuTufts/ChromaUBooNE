@@ -95,10 +95,8 @@ gpuphotons = GPUPhotonFromSteps( steps, cl_context=sim.context )
 # wavelengths.fill(128.0)
 # photons = Photons(pos=pos, dir=dir, pol=pol, t=t, wavelengths=wavelengths)
 photons = gpuphotons.get()
-print photons.pos.shape
-
 print "photons generated"
-raw_input()
+
 events = sim.simulate( photons, keep_photons_end=True, max_steps=2000)
 positions = []
 
