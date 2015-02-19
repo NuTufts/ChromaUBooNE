@@ -1,9 +1,11 @@
 import os,sys
-#os.environ['PYOPENCL_CTX']='1'
+os.environ['PYOPENCL_CTX']='0:1'
+os.environ['PYOPENCL_COMPILER_OUTPUT']='1'
 from unittest_find import unittest
 import numpy as np
 
 import chroma.api as api
+api.use_opencl()
 import chroma.gpu.tools as gputools
 from chroma.geometry import Solid, Geometry, vacuum
 from chroma.loader import create_geometry_from_obj
@@ -29,13 +31,14 @@ class TestDetector(unittest.TestCase):
         geo = create_geometry_from_obj(cube, update_bvh_cache=True, read_bvh_cache=False)
         print "Number of channels in detector: ",geo.num_channels()
         self.geo = geo
-        self.sim = Simulation(self.geo, geant4_processes=0)
+        self.sim = Simulation(self.geo, geant4_processes=0,
+                              nthreads_per_block=1, max_blocks=1 )
 
         self.rfile = rt.TFile("output_test_detector.root","recreate")
         self.htime = rt.TH1D("htime","Time;ns",120, 80, 120 )
         self.hcharge = rt.TH1D("hcharge","Charge;pe",100, 0.5, 1.5 )
 
-    #@unittest.skip('Skipping time test')
+    @unittest.skip('Skipping time test')
     def testTime(self):
         '''Test PMT time distribution'''
 
@@ -55,7 +58,7 @@ class TestDetector(unittest.TestCase):
                           wavelengths=wavelengths)
 
         hit_times = []
-        for ev in self.sim.simulate( (photons for i in xrange(500)), keep_photons_end=True, keep_photons_beg=False):
+        for ev in self.sim.simulate( (photons for i in xrange(1)), keep_photons_end=True, keep_photons_beg=False):
             for n,hit in enumerate(ev.channels.hit):
                 if hit:
                     hit_times.append(ev.channels.t[n])
@@ -73,7 +76,7 @@ class TestDetector(unittest.TestCase):
         # Run only one photon at a time
         phi= 1.0
         theta = 1.0
-        nphotons = 1
+        nphotons = 100
         pos = np.tile([0,0,0], (nphotons,1)).astype(np.float32)
         dir = np.tile([np.sin(theta*np.pi/180.0)*np.cos(phi*np.pi/180.0), np.sin(theta*np.pi/180.0)*np.sin(phi*np.pi/180.0), np.cos(theta*np.pi/180.0)], (nphotons,1)).astype(np.float32)
         pol = np.zeros_like(pos)
@@ -87,21 +90,20 @@ class TestDetector(unittest.TestCase):
         photons = Photons(pos=pos, dir=dir, pol=pol, t=t, wavelengths=wavelengths)
 
         hit_charges = []
-        for ev in self.sim.simulate( (photons for i in xrange(100)), keep_photons_end=True, keep_photons_beg=False):
+        for ev in self.sim.simulate( (photons for i in xrange(1)), keep_photons_end=True, keep_photons_beg=False):
             if ev.channels.hit[0]:
                 hit_charges.append(ev.channels.q[0])
                 self.hcharge.Fill( ev.channels.q[0] )
                 self.htime.Fill( ev.channels.t[0] )
-                print "Hits:  with q=",ev.channels.q[0],". Hit=",ev.channels.hit[0]
+                #print "Hits:  with q=",ev.channels.q[0],". Hit=",ev.channels.hit[0]
             ev.photons_end.dump_history()
         hit_charges = np.array(hit_charges)
         
-        self.assertAlmostEqual(hit_charges.mean(),  1.0, delta=1e-1)
-        self.assertAlmostEqual(hit_charges.std(), 0.1, delta=1e-1)
+        self.assertAlmostEqual(hit_charges.mean()/float(hit_charges.size),  1.0, delta=1e-1)
+        self.assertAlmostEqual(hit_charges.std()/float(hist_chargs.size), 0.1, delta=1e-1)
     def tearDown(self):
         self.rfile.Write()
 
 if __name__ == "__main__":
-    api.use_opencl()
     unittest.main()
 

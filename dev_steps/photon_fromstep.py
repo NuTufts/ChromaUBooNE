@@ -56,6 +56,7 @@ class GPUPhotonFromSteps( GPUPhotons ):
         # we do the dumbest thing first (i.e., no attempt to do fancy GPU manipulations here)
         # on the CPU, we scan the steps to determine the total number of photons using poisson statistics
         # we assume the user has seeded the random number generator to her liking
+        self.step_fsratio = np.array( self.steps_array[:,self._fsratio], dtype=np.float32 )
         self.nphotons_per_step = np.array( [ np.random.poisson( z ) for z in self.steps_array[:,self._nphotons].ravel() ], dtype=np.int )
         self.nphotons = reduce( lambda x, y : x + y, self.nphotons_per_step.ravel() )
         print "NSTEPS: ",self.nsteps
@@ -71,43 +72,71 @@ class GPUPhotonFromSteps( GPUPhotons ):
             # step info
             self.step_pos1_gpu = ga.empty(shape=self.nsteps, dtype=ga.vec.float3)
             self.step_pos2_gpu = ga.empty(shape=self.nsteps, dtype=ga.vec.float3)
-            self.step_fsratio = np.array( self.steps_array[:,self._fsratio], dtype=np.float32 )
             self.step_fsratio_gpu = ga.to_gpu( self.step_fsratio )
-            self.step_pos1_gpu.set( to_float3( self.steps_array[:,0:3] ) )
-            self.step_pos2_gpu.set( to_float3( self.steps_array[:,3:6] ) )
             self.source_step_index_gpu = ga.to_gpu( self.source_step_index )
             # photon info
             self.pos = ga.empty( shape=self.nphotons, dtype=ga.vec.float3 )
             self.dir = ga.empty( shape=self.nphotons, dtype=ga.vec.float3 )
             self.pol = ga.empty( shape=self.nphotons, dtype=ga.vec.float3 )
             self.wavelengths = ga.empty(shape=self.nphotons*ncopies, dtype=np.float32)
-            self.t = ga.empty(shape=self.nphotons*ncopies, dtype=np.float32)
+            self.t = ga.zeros(shape=self.nphotons*ncopies, dtype=np.float32)
             self.last_hit_triangles = ga.empty(shape=self.nphotons*ncopies, dtype=np.int32)
             self.flags = ga.empty(shape=self.nphotons*ncopies, dtype=np.uint32)
             self.weights = ga.empty(shape=self.nphotons*ncopies, dtype=np.float32)
-        elif api.is_gpu_api_cuda():
-            pass
+        elif api.is_gpu_api_opencl():
+            cl_queue = cl.CommandQueue( cl_context )
+            # step info
+            self.step_pos1_gpu = ga.empty(cl_queue, self.nsteps, dtype=ga.vec.float3)
+            self.step_pos2_gpu = ga.empty(cl_queue, self.nsteps, dtype=ga.vec.float3)
+            self.step_fsratio_gpu  = ga.to_device( cl_queue, self.step_fsratio )
+            self.source_step_index_gpu = ga.to_device( cl_queue, self.source_step_index )
+            # photon info
+            self.pos = ga.empty( cl_queue, self.nphotons, dtype=ga.vec.float3 )
+            self.dir = ga.empty( cl_queue, self.nphotons, dtype=ga.vec.float3 )
+            self.pol = ga.empty( cl_queue, self.nphotons, dtype=ga.vec.float3 )
+            self.wavelengths = ga.empty( cl_queue, self.nphotons*ncopies, dtype=np.float32)
+            self.t = ga.zeros( cl_queue, self.nphotons*ncopies, dtype=np.float32)
+            self.last_hit_triangles = ga.empty( cl_queue, self.nphotons*ncopies, dtype=np.int32)
+            self.flags = ga.empty( cl_queue, self.nphotons*ncopies, dtype=np.uint32)
+            self.weights = ga.empty( cl_queue, self.nphotons*ncopies, dtype=np.float32)
+        
+        self.step_pos1_gpu.set( to_float3( self.steps_array[:,0:3] ) )
+        self.step_pos2_gpu.set( to_float3( self.steps_array[:,3:6] ) )
+        self.t[:] = 100.0
         self.ncopies = ncopies
+
         if self.ncopies!=1:
             raise ValueError('support for multiple copies not supported')
 
         if api.is_gpu_api_cuda():
             self.gpumod = get_module( "gen_photon_from_step.cu", options=api_options, include_source_directory=True )
         elif api.is_gpu_api_opencl():
-            raise RuntimeError( "opencl not ready yet" )
+            self.gpumod = get_module( "gen_photon_from_step.cl", cl_context, options=api_options, include_source_directory=True )
         self.gpufuncs = GPUFuncs( self.gpumod )
 
         # need random numbers
         if seed==None:
-            seed = time.time()
+            seed = int(time.time())
         rng_states = get_rng_states(nthreads_per_block*max_blocks, seed=seed, cl_context=cl_context)
         for first_photon, photons_this_round, blocks in chunk_iterator(self.nphotons, nthreads_per_block, max_blocks):
-            self.gpufuncs.gen_photon_from_step( np.int32(first_photon), np.int32(self.nphotons), self.source_step_index_gpu,
-                                                self.step_pos1_gpu, self.step_pos2_gpu, self.step_fsratio_gpu,
-                                                np.float32( self.steps_array[0,self._fconst] ), np.float32( self.steps_array[0,self._sconst]  ), np.float32( 128.0 ),
-                                                rng_states,
-                                                self.pos, self.dir, self.pol, self.t, self.wavelengths, self.last_hit_triangles, self.flags, self.weights,
-                                                block=(nthreads_per_block,1,1), grid=(blocks, 1) )
+            if api.is_gpu_api_cuda():
+                self.gpufuncs.gen_photon_from_step( np.int32(first_photon), np.int32(self.nphotons), self.source_step_index_gpu,
+                                                    self.step_pos1_gpu, self.step_pos2_gpu, self.step_fsratio_gpu,
+                                                    np.float32( self.steps_array[0,self._fconst] ), np.float32( self.steps_array[0,self._sconst]  ), np.float32( 128.0 ),
+                                                    rng_states,
+                                                    self.pos, self.dir, self.pol, self.t, self.wavelengths, self.last_hit_triangles, self.flags, self.weights,
+                                                    block=(nthreads_per_block,1,1), grid=(blocks, 1) )
+            elif api.is_gpu_api_opencl():
+                self.gpufuncs.gen_photon_from_step( cl_queue, ( photons_this_round, 1, 1), None,
+                                                    np.int32(first_photon), np.int32(self.nphotons), self.source_step_index_gpu.data,
+                                                    self.step_pos1_gpu.data, self.step_pos2_gpu.data, self.step_fsratio_gpu.data,
+                                                    np.float32( self.steps_array[0,self._fconst] ), np.float32( self.steps_array[0,self._sconst]  ), np.float32( 128.0 ),
+                                                    rng_states.data,
+                                                    self.pos.data, self.dir.data, self.pol.data, self.t.data, self.wavelengths.data, 
+                                                    self.last_hit_triangles.data, self.flags.data, self.weights.data, g_times_l=False ).wait()
+                                                    
+            else:
+                raise RuntimeError("GPU API is neither CUDA nor OpenCL!")
             
         tend_genphotons =  time.time()
         print "GPUPhotonFromSteps: time to gen photons ",tend_genphotons-tstart_genphotons," secs"

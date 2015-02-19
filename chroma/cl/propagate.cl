@@ -138,6 +138,9 @@ __kernel void propagate( int first_photon, int nthreads,
 		     nsurfaces, detect, absorb, reemit, reflect_diffuse, reflect_specular, eta, k, surf_reemission_cdf, model, transmissive, thickness,
 		     *world_origin, world_scale, nprimary_nodes,
 		     n, wavelength_step, wavelength0 );
+//     for (int i=0; i<5; i++)
+//       printf("(%d, %d) primary node %d: %u %u %u %u\n", get_group_id(0), get_local_id(0), i, 
+// 	     sg.primary_nodes[i].x, sg.primary_nodes[i].y, sg.primary_nodes[i].z, sg.primary_nodes[i].w );
   }
   
   barrier( CLK_LOCAL_MEM_FENCE );
@@ -181,14 +184,19 @@ __kernel void propagate( int first_photon, int nthreads,
     }
     
     fill_state(&s, &p, &sg);
-    //    pdump( &p, photon_id, p.history, steps, command, id );
+    //pdump( &p, photon_id, p.history, steps, command, id );
 
-    if (p.last_hit_triangle == -1)
+    if (p.last_hit_triangle == -1) {
+      //pdump( &p, photon_id, p.history, steps, command, id );
       break;
+    }
     
     command = propagate_to_boundary(&p, &s, rng, use_weights, scatter_first);
     scatter_first = 0; // Only use the scatter_first value once
     //pdump( &p, photon_id, p.history, steps, command, id );
+    //printf("(%d) ptb %d. (%.2f, %.2f, %.2f). ",id,p.history, p.direction.x, p.direction.y,p.direction.z);
+    //print_photon_flag( &p );
+    //printf("\n");
  
     if (command == BREAK)
       break;
@@ -198,7 +206,10 @@ __kernel void propagate( int first_photon, int nthreads,
     
     if (s.surface_index != -1) {
       command = propagate_at_surface(&p, &s, rng, &sg, use_weights);
-      
+//       printf("(%d) pas %d. (%.2f, %.2f, %.2f). ",id,p.history, p.direction.x, p.direction.y,p.direction.z);
+//       print_photon_flag( &p );
+//       printf("\n");
+
       if (command == BREAK)
 	break;
       
@@ -207,8 +218,10 @@ __kernel void propagate( int first_photon, int nthreads,
     }
     
     propagate_at_boundary(&p, &s, rng);
+    //printf("(%d) pab %d. (%.2f, %.2f, %.2f). ",id,p.history, p.direction.x, p.direction.y,p.direction.z);
+    //print_photon_flag( &p );
+    //printf("\n");
 
-    //pdump( &p, photon_id, p.history, steps, command, id );
   } // while (steps < max_steps)
 
   // return the values to the host
@@ -228,6 +241,7 @@ __kernel void propagate( int first_photon, int nthreads,
     output_queue[out_idx] = photon_id; // gives photon_id at sequential address
   }
   
+  //pdump( &p, photon_id, p.history, steps, 0, id );
 
 } // propagate
 

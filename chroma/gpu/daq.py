@@ -115,7 +115,8 @@ class GPUDaq(object):
                                            np.float32(weight),
                                            block=(nthreads_per_block,1,1), grid=(blocks,1))
                 elif api.is_gpu_api_opencl():
-                    self.gpu_funcs.run_daq( comqueue, (nthreads_per_block,1,1), (blocks,1),
+                    print start_photon,first_photon,start_photon+first_photon,(photons_this_round,1,1), (nthreads_per_block,1,1)
+                    self.gpu_funcs.run_daq( comqueue, (photons_this_round,1,1), (nthreads_per_block,1,1),
                                             rng_states.data,
                                             np.uint32(0x1 << 2), np.int32(start_photon+first_photon), np.int32(photons_this_round),
                                             gpuphotons.t.data,  gpuphotons.flags.data, gpuphotons.last_hit_triangles.data, gpuphotons.weights.data,
@@ -127,7 +128,7 @@ class GPUDaq(object):
                                             self.detector_gpu.nchannels, self.detector_gpu.time_cdf_len, self.detector_gpu.charge_cdf_len, self.detector_gpu.charge_unit,
                                             # ---------------------
                                             self.earliest_time_int_gpu.data, self.channel_q_int_gpu.data, self.channel_history_gpu.data, np.float32(weight),
-                                            g_times_l=True ).wait()
+                                            g_times_l=False ).wait()
                                             
         else:
             for first_photon, photons_this_round, blocks in \
@@ -172,12 +173,13 @@ class GPUDaq(object):
                                                        block=(nthreads_per_block,1,1), grid=(len(self.channel_q_int_gpu)//nthreads_per_block+1,1))
             cuda.Context.get_current().synchronize()
         elif api.is_gpu_api_opencl():
+            print cl_context, nthreads_per_block
             comqueue = cl.CommandQueue( cl_context )
-            self.gpu_funcs.convert_sortable_int_to_float( comqueue, (nthreads_per_block,1,1), (len(self.channel_q_int_gpu)//nthreads_per_block+1,1),
+            self.gpu_funcs.convert_sortable_int_to_float( comqueue, (len(self.earliest_time_int_gpu),1,1), (nthreads_per_block,1,1),
                                                           np.int32(len(self.earliest_time_int_gpu)),
                                                           self.earliest_time_int_gpu.data, self.earliest_time_gpu.data,
                                                           g_times_l = True ).wait()
-            self.gpu_funcs.convert_charge_int_to_float( comqueue, (nthreads_per_block,1,1), (len(self.channel_q_int_gpu)//nthreads_per_block+1,1),
+            self.gpu_funcs.convert_charge_int_to_float( comqueue, (len(self.channel_q_int_gpu),1,1),(nthreads_per_block,1,1),
                                                         self.detector_gpu.nchannels,
                                                         self.detector_gpu.charge_unit,
                                                         self.channel_q_int_gpu.data, 

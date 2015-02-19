@@ -15,8 +15,8 @@ import chroma.uboone.load_ub_spectral_data as datatools
 # Using values from larproperties.fcl
 def make_steel_surface():
     steel_surface = Surface("steel_surface")
-    steel_surface.set('reflect_diffuse', 0.125)
-    steel_surface.set('reflect_specular',0.125)
+    steel_surface.set('reflect_diffuse', 0.25)
+    steel_surface.set('reflect_specular',0.0)
     steel_surface.set('detect',0.0)
     steel_surface.set('absorb',0.75)
     steel_surface.set('reemit',0.0)
@@ -30,10 +30,10 @@ def make_steel_surface():
 # Hard to know what it should be for 128 nm light
 def make_titanium_surface():
     titanium_surface = Surface("titanium_surface")
-    titanium_surface.set('reflect_diffuse', 0.0)
-    titanium_surface.set('reflect_specular',1.0)
+    titanium_surface.set('reflect_diffuse', 0.125)
+    titanium_surface.set('reflect_specular',0.125)
     titanium_surface.set('detect',0.0)
-    titanium_surface.set('absorb',0.0)
+    titanium_surface.set('absorb',0.75)
     titanium_surface.set('reemit',0.0)
     titanium_surface.transmissive = 0
     return titanium_surface
@@ -46,8 +46,8 @@ def make_glass_surface():
     # mostly fake numbers based on http://www.shimadzu.com/an/uv/support/uv/ap/measuring_solar2.html
     # glass mostly absorbs until 300 nm, then gradually transmits.  reflected light assumed diffuse
     glass_surface = Surface("glass_surface")
-    glass_surface.set('reflect_diffuse',  np.array( [ (100, 0.0), (280.0, 0.0), (350.0, 0.1), (1000.0, 0.1) ] ) )
-    glass_surface.set('reflect_specular', np.array( [ (100, 0.0), (280.0, 0.0), (350.0, 0.0), (1000.0, 0.0) ] ) )
+    glass_surface.set('reflect_diffuse',  np.array( [ (100, 0.0), (280.0, 0.0), (350.0, 0.5), (1000.0, 0.5) ] ) )
+    glass_surface.set('reflect_specular', np.array( [ (100, 0.0), (280.0, 0.0), (350.0, 0.5), (1000.0, 0.5) ] ) )
     glass_surface.set('absorb',           np.array( [ (100, 1.0), (280.0, 1.0), (350.0, 0.0), (1000.0, 0.0) ] ) )
     glass_surface.set('detect',0.0)
     glass_surface.set('reemit',0.0)
