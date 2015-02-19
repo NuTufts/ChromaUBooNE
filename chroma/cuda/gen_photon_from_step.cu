@@ -42,7 +42,7 @@ gen_photon_from_step( int first_photon, int nphotons, int* source_step_index,
   
   // isotropic direction
   float cosz = 2.0f*curand_uniform(&rng)-1.0f;
-  float sinz = 1-sqrtf(cosz*cosz);
+  float sinz = sqrtf( 1.0f-cosz*cosz );
   float phi  = 2.0f*CUDART_PI_F*curand_uniform(&rng);
   float3 dir_temp = make_float3( sinz*cosf(phi), sinz*sinf(phi), cosz );
   float dirnorm = sqrtf( dir_temp.x*dir_temp.x + dir_temp.y*dir_temp.y + dir_temp.z*dir_temp.z );

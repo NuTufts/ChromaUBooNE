@@ -116,7 +116,7 @@ class GPUPhotonFromSteps( GPUPhotons ):
 
         # need random numbers
         if seed==None:
-            seed = int(time.time())
+            seed = 5
         rng_states = get_rng_states(nthreads_per_block*max_blocks, seed=seed, cl_context=cl_context)
         for first_photon, photons_this_round, blocks in chunk_iterator(self.nphotons, nthreads_per_block, max_blocks):
             if api.is_gpu_api_cuda():

@@ -1,5 +1,5 @@
 import os
-os.environ['PYOPENCL_CTX']='0:1'
+#os.environ['PYOPENCL_CTX']='0:1'
 os.environ['PYOPENCL_COMPILER_OUTPUT'] = '0'
 #os.environ['CUDA_PROFILE'] = '1'
 import chroma.api as api

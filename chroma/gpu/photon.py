@@ -57,7 +57,7 @@ class GPUPhotons(object):
             self.weights = ga.empty(queue, shape=nphotons*ncopies, dtype=np.float32)
             self.current_node_index = ga.zeros( queue, shape=nphotons*ncopies, dtype=np.uint32 ) # deprecated
             self.requested_workcode = ga.empty( queue, shape=nphotons*ncopies, dtype=np.uint32 ) # deprecated
-        
+
         # Assign the provided photons to the beginning (possibly
         # the entire array if ncopies is 1
         self.pos[:nphotons].set(to_float3(photons.pos))
@@ -70,10 +70,13 @@ class GPUPhotons(object):
         self.weights[:nphotons].set(photons.weights.astype(np.float32))
 
         if api.is_gpu_api_cuda():
-            module = get_module('propagate.cu', options=api_options, include_source_directory=True)
+            self.module = get_module('propagate.cu', options=api_options, include_source_directory=True)
         elif  api.is_gpu_api_opencl():
-            module = get_module('propagate.cl', cl_context, options=api_options, include_source_directory=True)
-        self.gpu_funcs = GPUFuncs(module)
+            self.module = get_module('propagate.cl', cl_context, options=api_options, include_source_directory=True)
+        # define the texture references
+        self.define_texture_references()
+        # get kernel functions
+        self.gpu_funcs = GPUFuncs(self.module)
 
         # Replicate the photons to the rest of the slots if needed
         if ncopies > 1:
@@ -92,8 +95,10 @@ class GPUPhotons(object):
         self.true_nphotons = nphotons
         self.ncopies = ncopies
 
-    def define_texture_references( self ):
+    def define_texture_references( self, module=None ):
         # unbound texture references declared for use with propagate
+        if module==None:
+            module = self.module
         if api.is_gpu_api_cuda():
             self.node_texture_ref       = module.get_texref( "nodevec_tex_ref" )
             self.node_texture_ref.set_format( cuda.array_format.UNSIGNED_INT32, 4 )
