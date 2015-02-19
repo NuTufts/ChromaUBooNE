@@ -10,6 +10,8 @@ randstate_struct_dict = {}
 
 def get_struct_def( context ):
     global randstate_struct_dict
+    if api.is_gpu_api_opencl()==False:
+        return None
     if context not in randstate_struct_dict:
         randstate_struct = np.dtype( [("a",np.uint32), ("b",np.uint32), ("c",np.uint32), ("d",np.uint32)] )
 	#randstate_struct = np.dtype( [("a",np.int32), ("b",np.int32), ("c",np.int32), ("d",np.int32)] )

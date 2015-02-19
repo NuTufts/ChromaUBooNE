@@ -3,7 +3,6 @@ from pyqtgraph.Qt import QtCore, QtGui
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
 
-
 # LOAD PYQTGRAPH
 app = QtGui.QApplication([])
 w = gl.GLViewWidget()
@@ -20,13 +19,13 @@ w.addItem(g)
 
 
 import os,sys
-os.environ['PYOPENCL_CTX']='0:0'
-os.environ['PYOPENCL_COMPILER_OUTPUT'] = '0'
+#os.environ['PYOPENCL_CTX']='0:0'
+#os.environ['PYOPENCL_COMPILER_OUTPUT'] = '0'
 #os.environ['CUDA_PROFILE'] = '1'
 
 import chroma.api as api
-#api.use_opencl()
-api.use_cuda()
+api.use_opencl()
+#api.use_cuda()
 
 import numpy as np
 from chroma.sim import Simulation
@@ -34,6 +33,7 @@ from chroma.event import Photons
 import chroma.event
 from chroma.geometry import Surface
 from chroma.uboone.uboonedet import ubooneDet
+from photon_fromstep import GPUPhotonFromSteps
 
 uboone_wireplane = Surface( 'uboone_wireplane' )
 uboone_wireplane.nplanes = 3.0
@@ -72,29 +72,33 @@ detector_meshitem.rotate(90, 1, 0, 0 )
 
 w.addItem( detector_meshitem )
 
+steps = np.load( 'steps.npy' )
+gpuphotons = GPUPhotonFromSteps( steps, cl_context=sim.context )
+# # Generate photons
+# nphotons = 256*1000
+# dphi = np.random.uniform(0,2.0*np.pi, nphotons)
+# dcos = np.random.uniform(-1.0, 1.0, nphotons)
+# dir = np.array( zip( np.sqrt(1-dcos[:]*dcos[:])*np.cos(dphi[:]), np.sqrt(1-dcos[:]*dcos[:])*np.sin(dphi[:]), dcos[:] ), dtype=np.float32 )
 
-# Generate photons
-nphotons = 256*1000
-dphi = np.random.uniform(0,2.0*np.pi, nphotons)
-dcos = np.random.uniform(-1.0, 1.0, nphotons)
-dir = np.array( zip( np.sqrt(1-dcos[:]*dcos[:])*np.cos(dphi[:]), np.sqrt(1-dcos[:]*dcos[:])*np.sin(dphi[:]), dcos[:] ), dtype=np.float32 )
+# pos = np.tile([0,0,0], (nphotons,1)).astype(np.float32)
+# pol = np.zeros_like(pos)
+# phi = np.random.uniform(0, 2*np.pi, nphotons).astype(np.float32)
+# pol[:,0] = np.cos(phi)
+# pol[:,1] = np.sin(phi)
+# pol = np.cross( pol, dir )
+# for n,p in enumerate(pol):
+#    norm = np.sqrt( p[0]*p[0] + p[1]*p[1] + p[2]*p[2] )
+#    p /= norm
 
-pos = np.tile([0,0,0], (nphotons,1)).astype(np.float32)
-pol = np.zeros_like(pos)
-phi = np.random.uniform(0, 2*np.pi, nphotons).astype(np.float32)
-pol[:,0] = np.cos(phi)
-pol[:,1] = np.sin(phi)
-pol = np.cross( pol, dir )
-for n,p in enumerate(pol):
-   norm = np.sqrt( p[0]*p[0] + p[1]*p[1] + p[2]*p[2] )
-   p /= norm
+# t = np.zeros(nphotons, dtype=np.float32) + 100.0 # Avoid negative photon times
+# wavelengths = np.empty(nphotons, np.float32)
+# wavelengths.fill(128.0)
+# photons = Photons(pos=pos, dir=dir, pol=pol, t=t, wavelengths=wavelengths)
+photons = gpuphotons.get()
+print photons.pos.shape
 
-t = np.zeros(nphotons, dtype=np.float32) + 100.0 # Avoid negative photon times
-wavelengths = np.empty(nphotons, np.float32)
-wavelengths.fill(128.0)
-
-photons = Photons(pos=pos, dir=dir, pol=pol, t=t, wavelengths=wavelengths)
 print "photons generated"
+raw_input()
 events = sim.simulate( photons, keep_photons_end=True, max_steps=2000)
 positions = []
 

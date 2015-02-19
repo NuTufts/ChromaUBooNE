@@ -12,6 +12,7 @@ gen_photon_from_step( const int first_photon, const int nphotons, __global int* 
 		      __global float* t, __global float* wavelengths, 
 		      __global int* last_hit_triangle, __global uint* flags, __global float* weight) {
   int id = first_photon + get_global_id(0);
+  int threadid = get_global_id(0);
 
   if (id >= nphotons)
     return;
@@ -26,11 +27,12 @@ gen_photon_from_step( const int first_photon, const int nphotons, __global int* 
   // random position and direction
 
   // random state
-  __global clrandState* rng = rng_states+id;
+  __global clrandState* rng = rng_states+threadid;
 
   // pick the position
-  float3 start = step_start[id];
-  float3 end   = step_end[id];
+  int stepid = source_step_index[id];
+  float3 start = step_start[stepid];
+  float3 end   = step_end[stepid];
   //float3 step = make_float3( end.x-start.x, end.y-start.y, end.z-start.z );
   float3 step = end-start; //make_float3( end.x-start.x, end.y-start.y, end.z-start.z );
 
@@ -88,7 +90,7 @@ gen_photon_from_step( const int first_photon, const int nphotons, __global int* 
   // time
 
   float fsrand = clrand_uniform(rng, 0.0f, 1.0f);
-  if ( fsrand<step_fsratio[id] ) // fast time component
+  if ( fsrand<step_fsratio[stepid] ) // fast time component
     t[id] += -1.0*log( clrand_uniform(rng, 0.0f, 1.0f) )/fast_time_constant;
   else
     t[id] += -1.0*log( clrand_uniform(rng, 0.0f, 1.0f) )/slow_time_constant;

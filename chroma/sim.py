@@ -102,14 +102,22 @@ class Simulation(object):
             iterable = self.photon_generator.generate_events(iterable)
         elif isinstance(first_element, event.Photons):
             iterable = (event.Event(photons_beg=x) for x in iterable)
+        elif isinstance(first_element, GPUPhotons):
+            print "GPU Photons"
+            iterable = (event.Event(photons_beg=x) for x in iterable) # hacky!!!
         elif isinstance(first_element, event.Vertex):
             iterable = (event.Event(primary_vertex=vertex, vertices=[vertex]) for vertex in iterable)
             iterable = self.photon_generator.generate_events(iterable)
         t_photon_end = time.time()
-        print "Photon Gen Time: ",t_photon_end-t_photon_start," sec"
+        print "Photon Load Time: ",t_photon_end-t_photon_start," sec"
 
         for ev in iterable:
-            gpu_photons = GPUPhotons(ev.photons_beg,cl_context=self.context)
+            photons = ev.photons_beg
+            if isinstance(photons,event.Photons):
+                gpu_photons = GPUPhotons(photons,cl_context=self.context)
+            elif isinstance(photons,GPUPhotons):
+                gpu_photons = photons
+                ev.photons_beg = photons.get()
             gpu_photons.propagate(self.gpu_geometry, self.rng_states,
                                   nthreads_per_block=self.nthreads_per_block,
                                   max_blocks=self.max_blocks,

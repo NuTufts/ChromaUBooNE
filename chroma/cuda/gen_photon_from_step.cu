@@ -29,11 +29,12 @@ gen_photon_from_step( int first_photon, int nphotons, int* source_step_index,
   // random position and direction
 
   // random state
-  curandState rng = rng_states[id];
+  curandState rng = rng_states[blockIdx.x*blockDim.x + threadIdx.x]; // use thread's rng
 
   // pick the position
-  float3 start = step_start[id];
-  float3 end   = step_end[id];
+  int stepid = source_step_index[id];
+  float3 start = step_start[stepid];
+  float3 end   = step_end[stepid];
   float3 step = make_float3( end.x-start.x, end.y-start.y, end.z-start.z );
   float step_size = curand_uniform(&rng);
   float3 pos_temp = make_float3( start.x + step.x*step_size,
@@ -87,14 +88,14 @@ gen_photon_from_step( int first_photon, int nphotons, int* source_step_index,
   // time
 
   float fsrand = curand_uniform(&rng);
-  if ( fsrand<step_fsratio[id] ) // fast time component
+  if ( fsrand<step_fsratio[stepid] ) // fast time component
     t[id] += -1.0*logf( curand_uniform(&rng) )/fast_time_constant;
   else
     t[id] += -1.0*logf( curand_uniform(&rng) )/slow_time_constant;
 
   // ------------------------------------------
   // return the new random state
-  rng_states[id] = rng;
+  rng_states[blockIdx.x*blockDim.x + threadIdx.x] = rng;
   
 }
 

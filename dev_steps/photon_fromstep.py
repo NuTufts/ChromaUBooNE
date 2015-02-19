@@ -8,7 +8,7 @@ elif api.is_gpu_api_opencl():
     import pyopencl as cl
     import pyopencl.array as ga
 from chroma.tools import profile_if_possible
-from chroma import event
+import chroma.event
 from chroma.gpu.tools import get_module, api_options, chunk_iterator, to_float3, copy_to_float3, get_rng_states
 from chroma.gpu.gpufuncs import GPUFuncs
 from chroma.gpu.photon import GPUPhotons
@@ -79,7 +79,7 @@ class GPUPhotonFromSteps( GPUPhotons ):
             self.dir = ga.empty( shape=self.nphotons, dtype=ga.vec.float3 )
             self.pol = ga.empty( shape=self.nphotons, dtype=ga.vec.float3 )
             self.wavelengths = ga.empty(shape=self.nphotons*ncopies, dtype=np.float32)
-            self.t = ga.zeros(shape=self.nphotons*ncopies, dtype=np.float32)
+            self.t = ga.to_gpu( 100.0*np.ones(self.nphotons*ncopies, dtype=np.float32) )
             self.last_hit_triangles = ga.empty(shape=self.nphotons*ncopies, dtype=np.int32)
             self.flags = ga.empty(shape=self.nphotons*ncopies, dtype=np.uint32)
             self.weights = ga.empty(shape=self.nphotons*ncopies, dtype=np.float32)
@@ -102,8 +102,8 @@ class GPUPhotonFromSteps( GPUPhotons ):
         
         self.step_pos1_gpu.set( to_float3( self.steps_array[:,0:3] ) )
         self.step_pos2_gpu.set( to_float3( self.steps_array[:,3:6] ) )
-        self.t[:] = 100.0
         self.ncopies = ncopies
+        self.true_nphotons = self.nphotons
 
         if self.ncopies!=1:
             raise ValueError('support for multiple copies not supported')
@@ -137,9 +137,26 @@ class GPUPhotonFromSteps( GPUPhotons ):
                                                     
             else:
                 raise RuntimeError("GPU API is neither CUDA nor OpenCL!")
-            
+        if api.is_gpu_api_cuda():
+            cuda.Context.get_current().synchronize()
         tend_genphotons =  time.time()
         print "GPUPhotonFromSteps: time to gen photons ",tend_genphotons-tstart_genphotons," secs"
+
+        # Now load modules
+        if api.is_gpu_api_cuda():
+            self.module = get_module('propagate.cu', options=api_options, include_source_directory=True)
+        elif  api.is_gpu_api_opencl():
+            self.module = get_module('propagate.cl', cl_context, options=api_options, include_source_directory=True)
+        # define the texture references
+        self.define_texture_references()
+        # get kernel functions
+        self.gpu_funcs = GPUFuncs(self.module)
+
         
     def get(self):
-        return chroma.event.Photons( pos=self.pos.get(), dir=self.dir.get(), pol=self.pol.get(), t=self.t.get(), wavelengths=self.wavelengths.get() )
+        pos  = self.pos.get().ravel().view(np.float32).reshape( self.nphotons, 3 )
+        pdir = self.dir.get().ravel().view(np.float32).reshape( self.nphotons, 3 )
+        pol  = self.pol.get().ravel().view(np.float32).reshape( self.nphotons, 3 )
+        t    = self.t.get().view(np.float32)
+        wavelengths = self.wavelengths.get().view(np.float32)
+        return chroma.event.Photons( pos=pos, dir=pdir, pol=pol, t=t, wavelengths=wavelengths )
