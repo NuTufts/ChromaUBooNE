@@ -1,6 +1,6 @@
 import os,sys
-#os.environ['PYOPENCL_CTX']='0:1'
-#os.environ['PYOPENCL_COMPILER_OUTPUT'] = '0'
+os.environ['PYOPENCL_CTX']='0:0'
+os.environ['PYOPENCL_COMPILER_OUTPUT'] = '0'
 #os.environ['CUDA_PROFILE'] = '1'
 import chroma.api as api
 api.use_opencl()
@@ -77,8 +77,8 @@ class TestUbooneDetector(unittest.TestCase):
                               wireplane_volumes=[('volTPCPlane_PV0x7f868ac5ef50',add_wireplane_surface)],
                               acrylic_detect=True, acrylic_wls=False,  
                               read_bvh_cache=True, cache_dir="./uboone_cache",
-                              dump_node_info=True)
-        self.sim = Simulation(self.geo, geant4_processes=0, nthreads_per_block=64, max_blocks=1024)
+                              dump_node_info=False)
+        self.sim = Simulation(self.geo, geant4_processes=0, nthreads_per_block=1, max_blocks=1024)
         self.origin = self.geo.bvh.world_coords.world_origin
 
 
@@ -115,7 +115,7 @@ class TestUbooneDetector(unittest.TestCase):
 
         # Run only one photon at a time
         #nphotons = 7200000
-        nphotons = 256*1000
+        nphotons = 256*100
         #nphotons = 256*10
 
         dphi = np.random.uniform(0,2.0*np.pi, nphotons)
@@ -205,6 +205,5 @@ class TestUbooneDetector(unittest.TestCase):
         #rq.simulate( photons, self.sim )
 
 if __name__ == "__main__":
-    import pycuda
     unittest.main()
     pycuda.driver.stop_profiler()
