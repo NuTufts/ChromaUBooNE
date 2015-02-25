@@ -772,7 +772,7 @@ propagate_at_wireplane(Photon &p, State &s, curandState &rng, Surface *surface, 
   //printf( "prob>ptrans: %.2f > %.2f, %.4f, %.2f %.2f\n",prob,ptrans, transmission, costh, wire_ratio );
   if ( prob>ptrans ) {
     // hits wire plane
-    // absorb or reflect
+    // absorb or reflect [to do?]
     //float absorb = interp_property(surface, p.wavelength, surface->absorb);
     //float reflect_diffuse = interp_property(surface, p.wavelength, surface->reflect_diffuse);
     //float reflect_specular = interp_property(surface, p.wavelength, surface->reflect_specular);    

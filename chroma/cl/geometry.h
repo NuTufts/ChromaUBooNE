@@ -27,6 +27,7 @@ void fill_geostruct( __local Geometry* g,
                      __global float *reflect_diffuse, __global float *reflect_specular,
                      __global float *eta, __global float *k, __global float *surf_reemission_cdf,
                      __global unsigned int *model, __global unsigned int *transmissive, __global float *thickness, 
+		     __global float* nplanes, __global float* wire_diameter, __global float* wire_pitch,
                      float3 world_origin, float world_scale, int nprimary_nodes,
                      unsigned int nwavelengths, float step, float wavelength0 );
 void fill_material_struct( unsigned int material_index, Material* m, __local Geometry* g );
@@ -143,6 +144,7 @@ void fill_geostruct( __local Geometry* g,
 		     __global float *reflect_diffuse, __global float *reflect_specular,
 		     __global float *eta, __global float *k, __global float *surf_reemission_cdf,
 		     __global unsigned int *model, __global unsigned int *transmissive, __global float *thickness,
+		     __global float* nplanes, __global float* wire_diameter, __global float* wire_pitch,
 		     // world info
 		     float3 world_origin, float world_scale, int nprimary_nodes,
 		     // wavelength array info
@@ -171,6 +173,9 @@ void fill_geostruct( __local Geometry* g,
   g->model = model;
   g->transmissive = transmissive;
   g->thickness = thickness;
+  g->nplanes = nplanes;
+  g->wire_diameter = wire_diameter;
+  g->wire_pitch = wire_pitch;
   g->world_origin = world_origin;
   g->world_scale = world_scale;
   g->nprimary_nodes = nprimary_nodes;
@@ -209,6 +214,9 @@ void fill_surface_struct( unsigned int surface_index, Surface* s, __local Geomet
   s->model            = (g->model + offset);
   s->transmissive     = (g->transmissive + offset);
   s->thickness        = (g->thickness + offset);
+  s->nplanes          = (g->nplanes + offset);
+  s->wire_diameter    = (g->wire_diameter + offset);
+  s->wire_pitch       = (g->wire_pitch + offset);
 
   s->n = g->nwavelengths;
   s->step = g->step;

@@ -73,6 +73,8 @@ enum
     SURFACE_REEMIT   = 0x1 << 7,
     SURFACE_TRANSMIT = 0x1 << 8,
     BULK_REEMIT      = 0x1 << 9,
+    WIREPLANE_TRANS   = 0x1 << 10,
+    WIREPLANE_ABSORB  = 0x1 << 11,
     NAN_ABORT        = 0x1 << 31
 }; // processes
 
@@ -111,6 +113,7 @@ int propagate_at_specular_reflector(Photon *p, State *s);
 int propagate_at_diffuse_reflector(Photon *p, State *s, __global clrandState *rng);
 int propagate_complex(Photon *p, State *s, __global clrandState *rng, Surface* surface, bool use_weights);
 int propagate_at_wls(Photon *p, State *s, __global clrandState *rng, Surface *surface, bool use_weights);
+int propagate_at_wireplane(Photon *p, State *s, __global clrandState *rng, Surface *surface, bool use_weights);
 int propagate_at_surface(Photon *p, State *s, __global clrandState *rng, __local Geometry *geometry, bool use_weights);
 void sdump( State* s );
 
@@ -213,6 +216,7 @@ void pdump( const Photon* p, int photon_id, int status, int steps, int command, 
 
 void print_photon_flag( const Photon* p ) {
 
+#if __OPENCL_VERSION__>=120
     if (p->history & NO_HIT )           printf("NO_HIT ");
     if (p->history & RAYLEIGH_SCATTER ) printf("RAYLEIGH_SCATTER ");
     if (p->history & REFLECT_DIFFUSE )  printf("REFLECT_DIFFUSE ");
@@ -230,6 +234,7 @@ void print_photon_flag( const Photon* p ) {
     if (p->history & U_NAN_ABORT )      printf("NAN_ABORT ");
     if (p->history==0)                  printf("NO_HISTORY ");
     printf("\n");
+#endif
 
 };
 
@@ -863,6 +868,44 @@ int propagate_at_wls(Photon *p, State *s, __global clrandState *rng, Surface *su
   }
 } // propagate_at_wls
 
+int propagate_at_wireplane(Photon *p, State *s, __global clrandState *rng, Surface *surface, bool use_weights)
+{
+#if __OPENCL_VERSION__>=120
+  printf("surface\n");
+#endif
+  //float3 nv = s->surface_normal*p->direction;
+  float costh = fabs(dot( s->surface_normal, p->direction ));//fabs(nv.x+nv.y+nv.z);
+  float wire_ratio = *(surface->wire_diameter) / *(surface->wire_pitch);
+  float transmission = costh - wire_ratio;
+  transmission = max( 0.0f, transmission );
+  float ptrans = pow( transmission, *(surface->nplanes) );
+  // clamp between 0 and 1
+  ptrans = max( 0.0, ptrans );
+  ptrans = min( 1.0, ptrans );
+
+  if (use_weights && p->weight > WEIGHT_LOWER_THRESHOLD && (1.0f-ptrans) < (1.0f - WEIGHT_LOWER_THRESHOLD)) {
+    p->weight *= ptrans;
+    ptrans = 0.0f;
+  }
+
+  float prob = clrand_uniform(rng, 0.0f, 1.0f);
+  if ( prob>ptrans ) {
+    // hits wire plane
+    // absorb or reflect [to do?]
+    //float absorb = interp_property(surface, p.wavelength, surface->absorb);
+    //float reflect_diffuse = interp_property(surface, p.wavelength, surface->reflect_diffuse);
+    //float reflect_specular = interp_property(surface, p.wavelength, surface->reflect_specular);    
+    // for now absorb only. in future have a model for wire plane reflect (scrambling)
+    p->history |= WIREPLANE_ABSORB;
+    return BREAK;
+  }
+  else {
+    p->history |= WIREPLANE_TRANS;
+    return CONTINUE;
+  }
+
+} // propagate at wireplane
+
 int propagate_at_surface(Photon *p, State *s, __global clrandState *rng, __local Geometry *geometry, bool use_weights)
 {
   //Surface* surface = geometry->surfaces[s.surface_index];
@@ -873,6 +916,8 @@ int propagate_at_surface(Photon *p, State *s, __global clrandState *rng, __local
     return propagate_complex(p, s, rng, &surface, use_weights);
   else if ( *(surface.model) == SURFACE_WLS)
     return propagate_at_wls(p, s, rng, &surface, use_weights);
+  else if ( *(surface.model) == SURFACE_WIREPLANE )
+    return propagate_at_wireplane( p, s, rng, &surface, use_weights );
   else
     {
       // use default surface model: do a combination of specular and

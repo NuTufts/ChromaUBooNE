@@ -23,7 +23,7 @@ typedef struct WavelengthAxis {
   float wavelength0;
 } WavelengthAxis;
 
-enum { SURFACE_DEFAULT, SURFACE_COMPLEX, SURFACE_WLS };
+enum { SURFACE_DEFAULT=0, SURFACE_COMPLEX, SURFACE_WLS, SURFACE_WIREPLANE }; // models
 
 typedef struct Surface
 {
@@ -39,6 +39,9 @@ typedef struct Surface
   __global unsigned int *model;
   __global unsigned int *transmissive;
   __global float *thickness;
+  __global float *nplanes;
+  __global float *wire_diameter;
+  __global float *wire_pitch;
 
   unsigned int n;
   float step;
@@ -101,6 +104,9 @@ typedef struct Geometry
   __global unsigned int *model;
   __global unsigned int *transmissive;
   __global float *thickness;  
+  __global float* nplanes;
+  __global float* wire_diameter;
+  __global float* wire_pitch;
 
   float3 world_origin;
   float world_scale;

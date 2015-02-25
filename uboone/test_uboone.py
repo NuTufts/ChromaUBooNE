@@ -3,8 +3,8 @@ import os,sys
 #os.environ['PYOPENCL_COMPILER_OUTPUT'] = '0'
 #os.environ['CUDA_PROFILE'] = '1'
 import chroma.api as api
-#api.use_opencl()
-api.use_cuda()
+api.use_opencl()
+#api.use_cuda()
 from unittest_find import unittest
 import numpy as np
 from chroma.sim import Simulation
@@ -78,7 +78,7 @@ class TestUbooneDetector(unittest.TestCase):
                               acrylic_detect=True, acrylic_wls=False,  
                               read_bvh_cache=True, cache_dir="./uboone_cache",
                               dump_node_info=True)
-        self.sim = Simulation(self.geo, geant4_processes=0, nthreads_per_block=192, max_blocks=1024)
+        self.sim = Simulation(self.geo, geant4_processes=0, nthreads_per_block=64, max_blocks=1024)
         self.origin = self.geo.bvh.world_coords.world_origin
 
 
@@ -115,7 +115,7 @@ class TestUbooneDetector(unittest.TestCase):
 
         # Run only one photon at a time
         #nphotons = 7200000
-        nphotons = 256*10000
+        nphotons = 256*1000
         #nphotons = 256*10
 
         dphi = np.random.uniform(0,2.0*np.pi, nphotons)
@@ -139,7 +139,6 @@ class TestUbooneDetector(unittest.TestCase):
         photons = Photons(pos=pos, dir=dir, pol=pol, t=t, wavelengths=wavelengths)
         hit_charges = []
 
-
         if has_root:
             root_file = root_open("output_test_uboone.root", "recreate")
             root_tree = Tree("PhotonData", model=PhotonData )
@@ -148,12 +147,12 @@ class TestUbooneDetector(unittest.TestCase):
         for ev in self.sim.simulate( (photons for i in xrange(1)), keep_photons_end=True, keep_photons_beg=False, max_steps=100):
             ev.photons_end.dump_history()
             lht = ev.photons_end[0].last_hit_triangles
-            nhits = ev.channels.hit[ np.arange(0,30)[:] ]
+            nhits = ev.channels.hit[ np.arange(0,32)[:] ]
             
-            print "nchannels: ",len(ev.channels.hit)
-            print nhits
-            print ev.channels.q
-            print ev.channels.t
+            #print "nchannels: ",len(ev.channels.hit)
+            #print nhits
+            #print ev.channels.q
+            #print ev.channels.t
 
             if False:
                 # Fill Tree

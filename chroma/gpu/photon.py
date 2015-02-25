@@ -255,6 +255,7 @@ class GPUPhotons(object):
                                               gpu_geometry.surface_data['reflect_diffuse'].data, gpu_geometry.surface_data['reflect_specular'].data,
                                               gpu_geometry.surface_data['eta'].data, gpu_geometry.surface_data['k'].data, gpu_geometry.surface_data['reemission_cdf'].data,
                                               gpu_geometry.surface_data['model'].data, gpu_geometry.surface_data['transmissive'].data, gpu_geometry.surface_data['thickness'].data,
+                                              gpu_geometry.surface_data['nplanes'].data, gpu_geometry.surface_data['wire_diameter'].data, gpu_geometry.surface_data['wire_pitch'].data,
                                               g_times_l=True ).wait()
                 end_chunk = time.time()
                 chunk_time = end_chunk-start_chunk

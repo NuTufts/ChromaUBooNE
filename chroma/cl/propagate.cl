@@ -126,7 +126,8 @@ __kernel void propagate( int first_photon, int nthreads,
 			 __global float *detect, __global float *absorb, __global float *reemit,
 			 __global float *reflect_diffuse, __global float *reflect_specular, 
 			 __global float *eta, __global float *k, __global float *surf_reemission_cdf,
-			 __global unsigned int *model, __global unsigned int *transmissive, __global float *thickness )
+			 __global unsigned int *model, __global unsigned int *transmissive, __global float *thickness,
+			 __global float* nplanes, __global float* wire_diameter, __global float* wire_pitch )
 {
   __local Geometry sg;
 
@@ -136,6 +137,7 @@ __kernel void propagate( int first_photon, int nthreads,
     fill_geostruct(  &sg, vertices, triangles, material_codes, colors, primary_nodes, extra_nodes,
 		     nmaterials, refractive_index, absorption_length, scattering_length, reemission_prob, reemission_cdf,
 		     nsurfaces, detect, absorb, reemit, reflect_diffuse, reflect_specular, eta, k, surf_reemission_cdf, model, transmissive, thickness,
+		     nplanes, wire_diameter, wire_pitch,
 		     *world_origin, world_scale, nprimary_nodes,
 		     n, wavelength_step, wavelength0 );
 //     for (int i=0; i<5; i++)
@@ -236,7 +238,7 @@ __kernel void propagate( int first_photon, int nthreads,
   weights[photon_id] = p.weight;
   
   // Not done, put photon in output queue
-  if ((p.history & (NO_HIT | BULK_ABSORB | SURFACE_DETECT | SURFACE_ABSORB | NAN_ABORT)) == 0) {
+  if ((p.history & (NO_HIT | BULK_ABSORB | SURFACE_DETECT | SURFACE_ABSORB | WIREPLANE_ABSORB | NAN_ABORT)) == 0) {
     int out_idx = atomic_add(output_queue, 1); // adds one to first address
     output_queue[out_idx] = photon_id; // gives photon_id at sequential address
   }
