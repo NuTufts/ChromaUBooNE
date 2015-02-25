@@ -294,7 +294,8 @@ class GPUGeometry(object):
                                                self.surface_data['reflect_diffuse'].data, self.surface_data['reflect_specular'].data,
                                                self.surface_data['eta'].data, self.surface_data['k'].data, self.surface_data['reemission_cdf'].data,
                                                self.surface_data['model'].data, self.surface_data['transmissive'].data, self.surface_data['thickness'].data,
-                                               self.world_origin, self.world_scale, np.int32( len(self.nodes) ),
+                                               self.surface_data['nplanes'].data, self.surface_data['wire_diameter'].data, self.surface_data['wire_pitch'].data,
+                                               self.world_origin.data, self.world_scale, np.int32( len(self.nodes) ),
                                                self.material_data['n'], self.material_data['step'], self.material_data["wavelength0"] )
                 cl_queue.finish()
                 self.material_codes.get()
@@ -488,12 +489,12 @@ class GPUGeometry(object):
         eta              = np.zeros( (nsurfaces, nwavelengths), dtype=np.float32 )
         k                = np.zeros( (nsurfaces, nwavelengths), dtype=np.float32 )
         reemission_cdf   = np.zeros( (nsurfaces, nwavelengths), dtype=np.float32 )
-        model            = np.zeros( (nsurfaces,), dtype=np.uint32 )
-        transmissive     = np.zeros( (nsurfaces,), dtype=np.uint32 )
-        thickness        = np.zeros( (nsurfaces,), dtype=np.float32 )
-        nplanes          = np.zeros( (nsurfaces,), dtype=np.float32 )
-        wire_diameter    = np.zeros( (nsurfaces,), dtype=np.float32 )
-        wire_pitch       = np.zeros( (nsurfaces,), dtype=np.float32 )
+        model            = np.zeros( nsurfaces,  dtype=np.uint32 )
+        transmissive     = np.zeros( nsurfaces, dtype=np.uint32 )
+        thickness        = np.zeros( nsurfaces, dtype=np.float32 )
+        nplanes          = np.zeros( nsurfaces, dtype=np.float32 )
+        wire_diameter    = np.zeros( nsurfaces, dtype=np.float32 )
+        wire_pitch       = np.zeros( nsurfaces, dtype=np.float32 )
 
         for i in range(len(geometry.unique_surfaces)):
             surface = geometry.unique_surfaces[i]
@@ -523,16 +524,17 @@ class GPUGeometry(object):
         surface_data["eta"]              = ga.to_device( queue, eta.ravel() )
         surface_data["k"]                = ga.to_device( queue, k.ravel() )
         surface_data["reemission_cdf"]   = ga.to_device( queue, reemission_cdf.ravel() )
-        surface_data["model"]            = ga.to_device( queue, model.ravel() )
-        surface_data["transmissive"]     = ga.to_device( queue, transmissive.ravel() )
-        surface_data["thickness"]        = ga.to_device( queue, thickness.ravel() )
-        surface_data["nplanes"]          = ga.to_device( queue, nplanes.ravel() )
-        surface_data["wire_diameter"]    = ga.to_device( queue, wire_diameter.ravel() )
-        surface_data["wire_pitch"]       = ga.to_device( queue, wire_pitch.ravel() )
+        surface_data["model"]            = ga.to_device( queue, model )
+        surface_data["transmissive"]     = ga.to_device( queue, transmissive )
+        surface_data["thickness"]        = ga.to_device( queue, thickness )
+        surface_data["nplanes"]          = ga.to_device( queue, nplanes )
+        surface_data["wire_diameter"]    = ga.to_device( queue, wire_diameter )
+        surface_data["wire_pitch"]       = ga.to_device( queue, wire_pitch )
         surface_data["n"]                = np.uint32(nwavelengths)
         surface_data["step"]             = np.float32(wavelength_step)
         surface_data["wavelength0"]      = np.float32(wavelengths[0])
         surface_data["nsurfaces"]        = np.uint32( len(geometry.unique_surfaces) )
+
         nbytes = 0
         for data in surface_data:
             nbytes += surface_data[data].nbytes

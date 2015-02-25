@@ -19,6 +19,7 @@ __kernel void make_geostruct(//Geometry
 			     __global float *reflect_diffuse, __global float *reflect_specular,
 			     __global float *eta, __global float *k, __global float *surf_reemission_cdf,
 			     __global unsigned int *model, __global unsigned int *transmissive, __global float *thickness,
+			     __global float* nplanes, __global float* wire_diameter, __global float* wire_pitch,
 			     // World Info
 			     float3 world_origin, float world_scale, int nprimary_nodes,
 			     // Wavelength array info
@@ -30,12 +31,14 @@ __kernel void make_geostruct(//Geometry
     fill_geostruct( &g, vertices, triangles, material_codes, colors, primary_nodes, extra_nodes,
 		    nmaterials, refractive_index, absorption_length, scattering_length, reemission_prob, reemission_cdf,
 		    nsurfaces, detect, absorb, reemit, reflect_diffuse, reflect_specular, eta, k, surf_reemission_cdf, model, transmissive, thickness,
+		    nplanes, wire_diameter, wire_pitch,
 		    world_origin, world_scale, nprimary_nodes,
 		    nwavelengths, wavelengthstep, wavelength0 );
     
   }
   barrier( CLK_LOCAL_MEM_FENCE );
-  dump_geostruct_info( &g, id );
+  if ( id==0 )
+    dump_geostruct_info( &g, id, nprimary_nodes );
 };
 
 #endif

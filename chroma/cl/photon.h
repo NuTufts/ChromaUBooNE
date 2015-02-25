@@ -404,8 +404,10 @@ int propagate_to_boundary(Photon* p, State* s, __global clrandState* rng, bool u
 
   float rand1 = clrand_uniform(rng,0.0f,1.0f);
   float rand2 = clrand_uniform(rng,0.0f,1.0f);
-  float lrand1 = native_log(rand1); // built-in log gives garbage.  native_log also has precision problems to 2d decimal!
+  float lrand1 = native_log(rand1); // built-in log gives garbage.  native_log also has precision problems to 2nd decimal!
   float lrand2 = native_log(rand2);
+  //float lrand1 = log(rand1);
+  //float lrand2 = log(rand2);
   float absorption_distance = -s->absorption_length*lrand1;
   float scattering_distance = -s->scattering_length*lrand2;
   // for debug: warning weird stuff here
@@ -870,18 +872,15 @@ int propagate_at_wls(Photon *p, State *s, __global clrandState *rng, Surface *su
 
 int propagate_at_wireplane(Photon *p, State *s, __global clrandState *rng, Surface *surface, bool use_weights)
 {
-#if __OPENCL_VERSION__>=120
-  printf("surface\n");
-#endif
-  //float3 nv = s->surface_normal*p->direction;
+
   float costh = fabs(dot( s->surface_normal, p->direction ));//fabs(nv.x+nv.y+nv.z);
   float wire_ratio = *(surface->wire_diameter) / *(surface->wire_pitch);
   float transmission = costh - wire_ratio;
   transmission = max( 0.0f, transmission );
   float ptrans = pow( transmission, *(surface->nplanes) );
   // clamp between 0 and 1
-  ptrans = max( 0.0, ptrans );
-  ptrans = min( 1.0, ptrans );
+  ptrans = max( 0.0f, ptrans );
+  ptrans = min( 1.0f, ptrans );
 
   if (use_weights && p->weight > WEIGHT_LOWER_THRESHOLD && (1.0f-ptrans) < (1.0f - WEIGHT_LOWER_THRESHOLD)) {
     p->weight *= ptrans;
