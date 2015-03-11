@@ -38,22 +38,22 @@ class GPUDaqUBooNE(object):
         if self.ns_per_tdc==None:
             raise ValueError("GPUDaqUBooNE.NS_PER_TDC has not been set.")
 
-        cufilepath = os.path.dirname(os.path.realpath(__file__)) + "/daq_uboone"
+        kernel_filepath = os.path.dirname(os.path.realpath(__file__)) + "/daq_uboone"
         if api.is_gpu_api_cuda():
             self.adc_gpu = ga.zeros( gpu_detector.nchannels*ndaq*self.ntdcs, dtype=np.float32 )      # number of hits in bin (or weight of hits in bin)
             self.channel_history_gpu = ga.zeros( gpu_detector.nchannels, dtype=np.uint32 )
             self.detector_gpu = gpu_detector.detector_gpu  # detector struct
-            self.module = cutools.get_cu_module(cufilepath+".cu", options=api_options, include_source_directory=True)
+            self.module = cutools.get_cu_module(kernel_filepath+".cu", options=api_options, include_source_directory=True)
         elif api.is_gpu_api_opencl():
-            raise RunTimeError("Haven't built opencl daq")
             if cl_queue==None and cl_context==None:
                 raise RuntimeError("OpenCL requires either queue or context to be passed")
             if cl_queue==None:
                 cl_queue = cl_context.CommandQueue()
-            self.adc_gpu     = ga.zeros(cl_queue, ntdcs*gpu_detector.nchannels*ndaq, dtype=np.float32)
+            self.adc_gpu          = ga.zeros(cl_queue, self.ntdcs*gpu_detector.nchannels*ndaq, dtype=np.float32)
+            self.uint_adc_gpu     = ga.zeros(cl_queue, self.ntdcs*gpu_detector.nchannels*ndaq, dtype=np.uint32)
             self.channel_history_gpu = ga.zeros( cl_queue, gpu_detector.nchannels, dtype=np.uint32 )
             self.detector_gpu          = gpu_detector # struct not made in opencl mode, so we keep a copy of the class
-            self.module                = cltools.get_cl_module('daq_uboone.cl', cl_context, options=api_options, include_source_directory=True)
+            self.module                = cltools.get_cl_module(kernel_filepath+'.cl', cl_context, options=api_options, include_source_directory=True)
         else:
             raise RuntimeError("GPU API is neither CUDA nor OpenCL")
 
@@ -100,21 +100,25 @@ class GPUDaqUBooNE(object):
                                            np.float32(weight),
                                            block=(nthreads_per_block,1,1), grid=(blocks,1))
                 elif api.is_gpu_api_opencl():
-                    raise RunTimeError("Haven't built opencl daq")
-                    self.gpu_funcs.run_daq( comqueue, (nthreads_per_block,1,1), (blocks,1),
+                    self.gpu_funcs.run_daq( comqueue, (photons_this_round,1,1), None,
                                             rng_states.data,
-                                            np.uint32(0x1 << 2), np.int32(start_photon+first_photon), np.int32(photons_this_round),
+                                            np.uint32(0x1 << 2), np.int32(start_photon+first_photon), np.int32(nphotons),
                                             gpuphotons.t.data,  gpuphotons.flags.data, gpuphotons.last_hit_triangles.data, gpuphotons.weights.data,
                                             self.solid_id_map_gpu.data,
                                             # -- Detector struct --
                                             self.solid_id_to_channel_index_gpu.data,
-                                            self.detector_gpu.time_cdf_x_gpu.data, self.detector_gpu.time_cdf_y_gpu.data,
-                                            self.detector_gpu.charge_cdf_x_gpu.data, self.detector_gpu.charge_cdf_y_gpu.data,
-                                            self.detector_gpu.nchannels, self.detector_gpu.time_cdf_len, self.detector_gpu.charge_cdf_len, self.detector_gpu.charge_unit,
                                             # ---------------------
-                                            self.earliest_time_int_gpu.data, self.channel_q_int_gpu.data, self.channel_history_gpu.data, np.float32(weight),
-                                            g_times_l=True ).wait()
-                                            
+                                            self.uint_adc_gpu.data, np.int32(self.nchannels), np.int32(self.ntdcs), np.float32(self.ns_per_tdc), np.float32(100.0),
+                                            self.channel_history_gpu.data, 
+                                            np.float32(weight),
+                                            g_times_l=False ).wait()
+            # if opencl, need to convert ADC from uint to float
+            if api.is_gpu_api_opencl():
+                self.gpu_funcs.convert_adc( comqueue, (int(self.nchannels),1,1), None,
+                                            self.uint_adc_gpu.data, self.adc_gpu.data, 
+                                            np.int32(self.nchannels), np.int32(self.ntdcs), 
+                                            g_times_l=False ).wait()
+
         else:
             raise RunTimeError("Multi-DAQ not built")
             for first_photon, photons_this_round, blocks in \
@@ -150,16 +154,19 @@ class GPUDaqUBooNE(object):
             cl.enqueue_barrier(comqueue)
 
     
-    def end_acquire(self, nthreads_per_block=64, cl_context=None ):
-        self.earliest_time_gpu  = ga.zeros( self.nchannels, dtype=np.float32 )
-        #nblocks = int(self.nchannels/nthreads_per_block) + 1
-        nblocks = int(1000/nthreads_per_block) + 1
+    def end_acquire(self, nthreads_per_block=64, cl_context=None, cl_queue=None ):
         if api.is_gpu_api_cuda():
+            self.earliest_time_gpu  = ga.zeros( self.nchannels, dtype=np.float32 )
+            nblocks = int(self.nchannels/nthreads_per_block) + 1
             self.gpu_funcs.get_earliest_hit_time( np.int32(self.nchannels), np.int32(self.ntdcs), np.float32(self.ns_per_tdc),
                                                   self.adc_gpu, self.channel_history_gpu, 
                                                   self.earliest_time_gpu,
                                                   block=(1000,1,1), grid=(1,1) )
             self.adc_gpu.get()
+        elif  api.is_gpu_api_opencl():
+            self.earliest_time_gpu = ga.zeros( cl_queue, self.nchannels, dtype=np.float32 )
+            self.adc_gpu.get()
+
         return GPUChannels(self.earliest_time_gpu, self.adc_gpu, self.channel_history_gpu, self.ndaq, self.stride)
 
     @classmethod
