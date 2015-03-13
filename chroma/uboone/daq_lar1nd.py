@@ -21,7 +21,7 @@ from chroma.uboone.daq_hist import GPUDAQHist
 from chroma import event
 
 
-class GPUDaqUBooNE(GPUDAQHist):
+class GPUDaqLAr1ND(GPUDAQHist):
     """ DAQ that stores histogram of photon hits."""
     NTDC = None
     NS_PER_TDC = None
@@ -47,17 +47,17 @@ class GPUDaqUBooNE(GPUDAQHist):
           ValueError when ntdcs and ns_per_tdc are found to be NoneType
         """
         if ntdcs==None:
-            self.ntdcs = GPUDaqUBooNE.NTDC
+            self.ntdcs = GPUDaqLAr1ND.NTDC
         if ns_per_tdc==None:
-            self.ns_per_tdc = GPUDaqUBooNE.NS_PER_TDC
-        super( GPUDaqUBooNE, self ).__init__( gpu_detector, ntdcs=self.ntdcs, ns_per_tdc=self.ns_per_tdc, 
+            self.ns_per_tdc = GPUDaqLAr1ND.NS_PER_TDC
+        super( GPUDaqLAr1ND, self ).__init__( gpu_detector, ntdcs=self.ntdcs, ns_per_tdc=self.ns_per_tdc, 
                                               adc_bits=adc_bits, ndaq=ndaq, cl_context=cl_context, cl_queue=cl_queue )
         if self.ntdcs==None:
-            raise ValueError("GPUDaqUBooNE.NTDC has not been set.")
+            raise ValueError("GPUDaqLAr1ND.NTDC has not been set.")
         if self.ns_per_tdc==None:
-            raise ValueError("GPUDaqUBooNE.NS_PER_TDC has not been set.")
+            raise ValueError("GPUDaqLAr1ND.NS_PER_TDC has not been set.")
 
-        kernel_filepath = os.path.dirname(os.path.realpath(__file__)) + "/daq_uboone"
+        kernel_filepath = os.path.dirname(os.path.realpath(__file__)) + "/daq_lar1nd"
         if api.is_gpu_api_cuda():
             self.module = cutools.get_cu_module(kernel_filepath+".cu", options=api_options, include_source_directory=True)
         elif api.is_gpu_api_opencl():
@@ -104,6 +104,9 @@ class GPUDaqUBooNE(GPUDAQHist):
                                             # ---------------------
                                             self.uint_adc_gpu.data, np.int32(self.nchannels), np.int32(self.ntdcs), np.float32(self.ns_per_tdc), np.float32(100.0),
                                             self.channel_history_gpu.data, 
+                                            # -- Channel transforms --
+                                            self.channel_inverse_rot_gpu.data, self.channel_inverse_trans_gpu.data,
+                                            # ------------------------
                                             np.float32(weight),
                                             g_times_l=False ).wait()
             # if opencl, need to convert ADC from uint to float
@@ -182,7 +185,7 @@ class GPUDaqUBooNE(GPUDAQHist):
 
         will be called by chroma.Simulation to build DAQ instance.
         Returns:
-          GPUDaqUBooNE instance
+          GPUDaqLAr1ND instance
         """
-        return GPUDaqUBooNE( gpu_geometry, cl_context=cl_context, cl_queue=cl_queue )
+        return GPUDaqLAr1ND( gpu_geometry, cl_context=cl_context, cl_queue=cl_queue )
 

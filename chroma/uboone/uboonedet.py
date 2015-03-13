@@ -95,16 +95,49 @@ class ubooneDet( Detector ):
 
 
         # Finally, setup channels
-        print "SETUP UBOONE CHANNELS from solids list (",len(self.solids)," solids)"
+        self._setup_channels( acrylic_detect, detector_volumes )
+        self._setup_photodetectors()
+
+        if self.bvh is None:
+            self.bvh = load_bvh(self, auto_build_bvh=auto_build_bvh,
+                                read_bvh_cache=read_bvh_cache,
+                                update_bvh_cache=update_bvh_cache,
+                                cache_dir=cache_dir, bvh_method=bvh_method, target_degree=bvh_target_degree,
+                                cuda_device=cuda_device, cl_device=cl_device)
+
+        if calculate_ndsar_tree:
+            # This tree helps with the navigation of the node tree (deprecated)
+            print "Calculate node DSAR tree ...",
+            sndsar = time.time()
+            self.node_dsar_tree = NodeDSARtree( self.bvh )
+            endsar = time.time()
+            print " done ",endsar-sndsar," secs."
+
+        # OK, we should be ready to go
+
+    def _setup_photodetectors( self ):
+        self.set_time_dist_gaussian( 1.2, -6.0, 6.0 )
+        self.set_charge_dist_gaussian( 1.0, 0.1, 0.5, 1.5 )
+
+    def _setup_channels( self, acrylic_detect, detector_volumes ):
+        """
+        fills in the solid_id_to_channel_index/solid_id_to_channel_id array look up array.
+        we also make a dictionary of channel id number to node. we will need this to
+        access information for various things.
+        searches for nodes with a logical volume name that contains any of the strings in the list 'detector_volumes'.
+        acrylic_detect is likely deprecated.
+        """
+        print "SETUP CHANNELS from solids list (",len(self.solids)," solids)"
         self.solid_id_to_channel_index.resize( len(self.solids) )
         self.solid_id_to_channel_index.fill(-1) # default no channels
         self.solid_id_to_channel_id.resize( len(self.solids) )
         self.solid_id_to_channel_id.fill(-1)
 
-        print len( self.solid_id_to_channel_index ), len(  self.solid_id_to_channel_id )
         # prevous calls to add_solid by collada_to_chroma sized this array
         for n,solid in enumerate(self.solids):
             if acrylic_detect and  any( volnames in solid.node.lv.id for volnames in detector_volumes ):
+                #print "Detector Solid: ",solid.node
+                #print solid.node.boundgeom.matrix
                 solid_id = n
                 channel_index = len(self.channel_index_to_solid_id)
                 channel_id = channel_index # later can do more fancy channel indexing/labeling
@@ -121,26 +154,5 @@ class ubooneDet( Detector ):
                 self.channel_id_to_channel_index[channel_id] = channel_index
         print "Number of Channels Added: ",len(self.channel_index_to_solid_id)
 
-        if self.bvh is None:
-            self.bvh = load_bvh(self, auto_build_bvh=auto_build_bvh,
-                                read_bvh_cache=read_bvh_cache,
-                                update_bvh_cache=update_bvh_cache,
-                                cache_dir=cache_dir, bvh_method=bvh_method, target_degree=bvh_target_degree,
-                                cuda_device=cuda_device, cl_device=cl_device)
-
-        self._setup_photodetectors()
-
-        if calculate_ndsar_tree:
-            # This tree helps with the navigation of the node tree (deprecated)
-            print "Calculate node DSAR tree ...",
-            sndsar = time.time()
-            self.node_dsar_tree = NodeDSARtree( self.bvh )
-            endsar = time.time()
-            print " done ",endsar-sndsar," secs."
-
-
-        # OK, we should be ready to go
-    def _setup_photodetectors( self ):
-        self.set_time_dist_gaussian( 1.2, -6.0, 6.0 )
-        self.set_charge_dist_gaussian( 1.0, 0.1, 0.5, 1.5 )
+        
         

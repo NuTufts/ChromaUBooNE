@@ -57,7 +57,7 @@ class Simulation(object):
             if hasattr(detector, 'num_channels'):
                 self.gpu_geometry = GPUDetector(detector)
                 if user_daq==None:
-                    print "Using defult daq"
+                    print "Using default daq"
                     self.gpu_daq = GPUDaq(self.gpu_geometry)
                 else:
                     print "Using user daq: ",user_daq
@@ -143,7 +143,7 @@ class Simulation(object):
                 t_daq_start = time.time()
                 self.gpu_daq.begin_acquire( cl_context=self.context )
                 self.gpu_daq.acquire(gpu_photons, self.rng_states, nthreads_per_block=self.nthreads_per_block, max_blocks=self.max_blocks, cl_context=self.context )
-                gpu_channels = self.gpu_daq.end_acquire( cl_context=self.context, cl_queue=self.clqueue )
+                gpu_channels = self.gpu_daq.end_acquire( cl_context=self.context )
                 ev.channels = gpu_channels.get()
                 t_daq_end = time.time()
                 print "DAQ readout time: ",t_daq_end-t_daq_start," sec"

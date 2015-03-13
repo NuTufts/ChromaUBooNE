@@ -160,7 +160,7 @@ def sim_event( numpy_array_file ):
 
 
 # ============================
-angle = 2.0
+angle = 0.0
 def update():
     global detector_angle
     detector_angle += angle
@@ -178,3 +178,7 @@ def start_app():
     if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
         QtGui.QApplication.instance().exec_()
 
+
+if __name__ == "__main__":
+    sim_event( "temp.npy" )
+    start_app()

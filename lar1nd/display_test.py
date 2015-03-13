@@ -22,11 +22,11 @@ import chroma.event
 from chroma.geometry import Surface
 from chroma.uboone.uboonedet import ubooneDet
 from lar1nd_wireplane import add_wireplane_surface
-from chroma.uboone.daq_uboone import GPUDaqUBooNE
+from chroma.uboone.daq_lar1nd import GPUDaqLAr1ND
 
 # configure DAQ
-GPUDaqUBooNE.NTDC = 50
-GPUDaqUBooNE.NS_PER_TDC = 1.0
+GPUDaqLAr1ND.NTDC = 50
+GPUDaqLAr1ND.NS_PER_TDC = 1.0
 NCHANNELS = 1000
 
 daefile = "dae/lar1nd_lightguides_nowires_chroma.dae"
@@ -35,9 +35,10 @@ geom = ubooneDet( daefile, detector_volumes=["vollightguidedetector"],
                   acrylic_detect=True, acrylic_wls=False,
                   read_bvh_cache=True, cache_dir="./lar1nd_cache",
                   dump_node_info=False )
-sim = Simulation(geom, geant4_processes=0, nthreads_per_block=nthreads_per_block, max_blocks=1024, user_daq=GPUDaqUBooNE)
+sim = Simulation(geom, geant4_processes=0, nthreads_per_block=nthreads_per_block, max_blocks=1024, user_daq=GPUDaqLAr1ND)
 geom.mesh.vertices
 geom.mesh.triangles
+
 
 # Generate photons
 nphotons = 256*100
@@ -45,7 +46,7 @@ dphi = np.random.uniform(0,2.0*np.pi, nphotons)
 dcos = np.random.uniform(-1.0, 1.0, nphotons)
 dir = np.array( zip( np.sqrt(1-dcos[:]*dcos[:])*np.cos(dphi[:]), np.sqrt(1-dcos[:]*dcos[:])*np.sin(dphi[:]), dcos[:] ), dtype=np.float32 )
 
-pos = np.tile([500,0,0], (nphotons,1)).astype(np.float32)
+pos = np.tile([1200,0,1000], (nphotons,1)).astype(np.float32)
 pol = np.zeros_like(pos)
 phi = np.random.uniform(0, 2*np.pi, nphotons).astype(np.float32)
 pol[:,0] = np.cos(phi)
@@ -128,16 +129,17 @@ t.timeout.connect(update)
 
 # Photon DAQ
 optdetwindow = pg.GraphicsWindow(title="OptDetPanels")
+layout = QtGui.QGridLayout()
 
 # PANEL1 CHANNELS
 optdet_panel1 = optdetwindow.addPlot(name="PANEL1", title="Panel 1")
 optdet_panel1_image = pg.ImageItem()
 optdet_panel1.addItem( optdet_panel1_image )
-optdet_panel1_data = np.zeros( (NCHANNELS/2,GPUDaqUBooNE.NTDC), dtype=np.float )
-optdet_panel1_sumdata = np.zeros( GPUDaqUBooNE.NTDC, dtype=np.float )
+optdet_panel1_data = np.zeros( (NCHANNELS/2,GPUDaqLAr1ND.NTDC), dtype=np.float )
+optdet_panel1_sumdata = np.zeros( GPUDaqLAr1ND.NTDC, dtype=np.float )
 for ch in xrange( 0, NCHANNELS, 2 ):
-   optdet_panel1_data[ch/2,:] = ev.channels.q[ ch*GPUDaqUBooNE.NTDC: (ch+1)*GPUDaqUBooNE.NTDC ]
-   optdet_panel1_sumdata[:] += ev.channels.q[ ch*GPUDaqUBooNE.NTDC: (ch+1)*GPUDaqUBooNE.NTDC ]
+   optdet_panel1_data[ch/2,:] = ev.channels.q[ ch*GPUDaqLAr1ND.NTDC: (ch+1)*GPUDaqLAr1ND.NTDC ]
+   optdet_panel1_sumdata[:] += ev.channels.q[ ch*GPUDaqLAr1ND.NTDC: (ch+1)*GPUDaqLAr1ND.NTDC ]
 optdet_panel1_image.setImage( image=optdet_panel1_data, autoDownsample=True )
 optdetwindow.nextRow()
 optdet_panel1_sum = optdetwindow.addPlot( title="PANEL1 Time Projection" )
@@ -149,11 +151,11 @@ optdetwindow.nextRow()
 optdet_panel2 = optdetwindow.addPlot(name="PANEL2", title="Panel 2")
 optdet_panel2_image = pg.ImageItem()
 optdet_panel2.addItem( optdet_panel2_image )
-optdet_panel2_data = np.zeros( (NCHANNELS/2,GPUDaqUBooNE.NTDC), dtype=np.float )
-optdet_panel2_sumdata = np.zeros( GPUDaqUBooNE.NTDC, dtype=np.float )
+optdet_panel2_data = np.zeros( (NCHANNELS/2,GPUDaqLAr1ND.NTDC), dtype=np.float )
+optdet_panel2_sumdata = np.zeros( GPUDaqLAr1ND.NTDC, dtype=np.float )
 for ch in xrange( 1, NCHANNELS, 2 ):
-   optdet_panel2_data[ch/2,:] = ev.channels.q[ (ch)*GPUDaqUBooNE.NTDC: (ch+1)*GPUDaqUBooNE.NTDC ]
-   optdet_panel2_sumdata[:] += ev.channels.q[ ch*GPUDaqUBooNE.NTDC: (ch+1)*GPUDaqUBooNE.NTDC ]
+   optdet_panel2_data[ch/2,:] = ev.channels.q[ (ch)*GPUDaqLAr1ND.NTDC: (ch+1)*GPUDaqLAr1ND.NTDC ]
+   optdet_panel2_sumdata[:] += ev.channels.q[ ch*GPUDaqLAr1ND.NTDC: (ch+1)*GPUDaqLAr1ND.NTDC ]
 optdet_panel2_image.setImage( image=optdet_panel2_data, autoDownsample=True )
 optdetwindow.nextRow()
 optdet_panel2_sum = optdetwindow.addPlot( title="PANEL2 Time Projection" )

@@ -115,7 +115,7 @@ class GPUDaq(object):
                                            np.float32(weight),
                                            block=(nthreads_per_block,1,1), grid=(blocks,1))
                 elif api.is_gpu_api_opencl():
-                    print "daq: ",start_photon,first_photon,start_photon+first_photon,(photons_this_round/nthreads_per_block,1,1), (nthreads_per_block,1,1)
+                    #print "daq: ",start_photon,first_photon,start_photon+first_photon,(photons_this_round/nthreads_per_block,1,1), (nthreads_per_block,1,1)
                     self.gpu_funcs.run_daq( comqueue, (photons_this_round/nthreads_per_block,1,1), (nthreads_per_block,1,1),
                                             rng_states.data,
                                             np.uint32(0x1 << 2), np.int32(start_photon+first_photon), np.int32(photons_this_round),

@@ -62,6 +62,7 @@ class GPUGeometry(object):
     def __init__(self, geometry, wavelengths=None, print_usage=False, min_free_gpu_mem=300e6, cl_context=None, cl_queue=None):
         log.info("GPUGeometry.__init__ min_free_gpu_mem %s ", min_free_gpu_mem)
 
+        self.geometry = geometry
         self.instance_count += 1
         assert self.instance_count == 1,  traceback.print_stack()
 
@@ -271,7 +272,6 @@ class GPUGeometry(object):
                                             self.world_origin,
                                             self.world_scale,
                                             np.int32(len(self.nodes))])
-            self.geometry = geometry
         elif api.is_gpu_api_opencl():
             # No relevant way to pass struct into OpenCL kernel. We have to pass everything by arrays
             # We then build a geometry struct later in the kernel
