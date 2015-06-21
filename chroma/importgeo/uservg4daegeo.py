@@ -6,6 +6,7 @@ from chroma.g4daenode.g4daenode import DAENode
 from chroma.loader import load_bvh
 from sets import Set
 import numpy as np
+from itertools import imap
 
 class UserVG4DEAGeo(Detector):
     __metaclass__ = abc.ABCMeta
@@ -47,31 +48,46 @@ class UserVG4DEAGeo(Detector):
         self.unique_materials = geom.unique_materials
         self.material1_index = geom.material1_index
         self.material2_index = geom.material2_index
-        #material_lookup = dict(zip(self.unique_materials, range(len(self.unique_materials))))
+        print "Materials: ",len(self.material1_index),len(self.material2_index)
 
         # Next we need to go through all the triangles and make sure they have the right surfaces attached to them
-        # We use the material lists to loop over all triangles
+        # We use the material lists to generate pairs of materials to that require a surface
+        # Note material index list is over all triangles already
+        # Then we make a list of surfaces
+        self.user_surfaces_dict = self.surfacesdict()
         self.unique_surfaces = []
-        surface_index_dict = {}
-        surface_indices = []
+        surface_index_dict = {None:-1}
+        surface_index = []
         for id, mats in enumerate( zip(self.material1_index, self.material2_index) ):
-            existing_surface = geom.surface_index[ id ]
-            if existing_surface!=-1:
-                print "Triangle %d already has specified surface: "%(id),geom.unique_surfaces[ existing_surface ]
-                surface = geom.unique_surfaces[ existing_surface ]
+            surface = None
+            if self.unique_materials[mats[0]].name!=self.unique_materials[mats[1]].name:
+                existing_surface = geom.surface_index[ id ]
+                if existing_surface!=-1:
+                    print "Triangle %d already has specified surface: "%(id),geom.unique_surfaces[ existing_surface ]
+                    surface = geom.unique_surfaces[ existing_surface ]
+                else:
+                    mat1 = self.unique_materials[mats[0]].name.split("0x")[0]
+                    mat2 = self.unique_materials[mats[1]].name.split("0x")[0]
+                    if (mat1,mat2) in self.user_surfaces_dict:
+                        surface = self.user_surfaces_dict[ (mat1, mat2) ]
+                    elif (mat2,mat1) in self.user_surfaces_dict:
+                        surface = self.user_surfaces_dict[ (mat2,mat1) ]
+                    else:
+                        raise RuntimeError("Could not assign a surface between materials %s and %s. Must provide through sufacesdict(self) method."%(mat1,mat2))
             else:
-                #surface = uboonesurfaces.get_boundary_surface( self.unique_materials[mats[0]].name, self.unique_materials[mats[1]].name )
-                surface = None
-            if surface==None:
-                surface_indices.append( -1 )
-            else:
-                if surface not in self.unique_surfaces:
-                    self.unique_surfaces.append( surface )
-                    surface_index_dict[ surface ] = self.unique_surfaces.index( surface )
-                surface_indices.append( surface_index_dict[ surface ] )
-        self.surface_index = np.array( surface_indices, dtype=np.int )
-        print "number of surface indicies: ",len(self.surface_index)
+                if geom.surface_index[id ]!=-1:
+                    print "Triangle %d already has specified surface: "%(id),geom.unique_surfaces[ existing_surface ]
+                    surface = geom.unique_surfaces[ existing_surface ]
+                else:
+                    surface = None
+            if surface is not None and surface not in self.unique_surfaces:
+                self.unique_surfaces.append( surface )
+                surface_index_dict[ surface ] = self.unique_surfaces.index( surface )
+                print "Registering new surface: [%d] %s"%(surface_index_dict[surface],surface.name)
+            surface_index.append( surface_index_dict[ surface ] )
 
+        print "number of unique surfaces: ",len(self.unique_surfaces)
+        print self.unique_surfaces
 
     #@abc.abstractmethod
     #def materialsdict(self):
@@ -80,7 +96,9 @@ class UserVG4DEAGeo(Detector):
 
     @abc.abstractmethod
     def surfacesdict(self):
-        """Return a dictionary of {'name':Surface}"""
+        """Return a dictionary of {('material1 name','material2 name'):Surface}
+        Geant4 geometries must have materials specified.  Surfaces not so much. So we provide a dictionary to fill in the surfaces.
+        """
         raise RuntimeError("User is expected to return a dictionary of {'name':Surface} where name is of type 'str' and Surface is of type 'Surface' (in chroma.geometry module)")
 
     @abc.abstractmethod
