@@ -24,4 +24,16 @@ It might also be a fact that the user must always do some work
 to reorder the heirarchy of the geometry to be more nested 
 to work with G4DAE/Collada.
 
+## Steps towards a Chroma Geometry
+
+* Define Geant geometry using GDML or native Geant
+  * Nest your volumes!
+  * Give Physical volumes distinct names. This is what we use to identify nodes.
+* Store geometry description in collada format using G4DAE
+* run makeGeantClassTemplate.py to output a template class that you, the user, must fill in.
+  it is used to help smooth the rough edges of the import geometry. in it the user must:
+  * provide the names of wireplane volumes
+  * provide a list of physical volume names that are sensitive.  also the map between physical volume and ID number must be provided.
+  * sensitive detectors can be grouped
+
 
