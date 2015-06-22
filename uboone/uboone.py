@@ -14,7 +14,7 @@ uboone_wireplane.model = Surface.SURFACE_WIREPLANE
 class uboone( UserVG4DEAGeo ):
 
     def __init__(self):
-        super(uboone,self).__init__( "uboone", "dae/microboone_32pmts_nowires_cryostat.dae" )
+        super(uboone,self).__init__( "uboone", "dae/microboone_32pmts_nowires_cryostat.dae", )
 
     def surfacesdict(self):
         # Steel/LAr
@@ -83,9 +83,16 @@ class uboone( UserVG4DEAGeo ):
                               ("Glass","Vacuum"):black_surface, }
 
         return boundary_surfaces
-    
+
+    def  sensitiveLogicalVolumes(self):
+        return ["vol_PMT_AcrylicPlate","volPaddle_PMT"]
+
+    def sensitivePhysicalVolumes(self):
+        return ["pvPMT","pvPaddle"]
+
     def channeldict(self):
-        return {}
+        channelmap = { }
+        return channelmap
 
     def wireplanevolumes(self):
         """Returns list of volumes with wire planes"""
