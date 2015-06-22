@@ -1,4 +1,12 @@
 import os,sys
+#os.environ['PYOPENCL_CTX']='0:0'
+#os.environ['PYOPENCL_COMPILER_OUTPUT'] = '0'
+#os.environ['CUDA_PROFILE'] = '1'
+import chroma.api as api
+#api.use_opencl()
+api.use_cuda()
+
+import numpy as np
 from pyqtgraph.Qt import QtCore, QtGui
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
@@ -7,16 +15,8 @@ from chroma.sim import Simulation
 from chroma.event import Photons
 
 # LOAD CHROMA UBOONE
-import os,sys
-#os.environ['PYOPENCL_CTX']='0:0'
-#os.environ['PYOPENCL_COMPILER_OUTPUT'] = '0'
-#os.environ['CUDA_PROFILE'] = '1'
 nthreads_per_block = 1
 
-import chroma.api as api
-api.use_opencl()                                                                                                                                                                                                     #api.use_cuda()
-
-import numpy as np
 from uboone import uboone
 
 
