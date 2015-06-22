@@ -89,6 +89,17 @@ class UserVG4DEAGeo(Detector):
         print "number of unique surfaces: ",len(self.unique_surfaces)
         print self.unique_surfaces
 
+        # Setup the channels
+        
+
+        # Setup the BVH
+        if self.bvh is None:
+            self.bvh = load_bvh(self, auto_build_bvh=auto_build_bvh,
+                                read_bvh_cache=read_bvh_cache,
+                                update_bvh_cache=update_bvh_cache,
+                                cache_dir=cache_dir, bvh_method=bvh_method, target_degree=bvh_target_degree,
+                                cuda_device=cuda_device, cl_device=cl_device)
+
     #@abc.abstractmethod
     #def materialsdict(self):
     #    """Return a dictionary of {'name':Material}"""
@@ -102,11 +113,6 @@ class UserVG4DEAGeo(Detector):
         raise RuntimeError("User is expected to return a dictionary of {'name':Surface} where name is of type 'str' and Surface is of type 'Surface' (in chroma.geometry module)")
 
     @abc.abstractmethod
-    def channeldict(self):
-        """Return a dictionary of {ID:'volumename'}"""
-        raise RuntimeError("User is expected to return a dictionary of {ID:'VolumeName'} where ID is an integer and VolumeName is of type 'str'")
-    
-    @abc.abstractmethod
     def setaswireplane(self,name,solid):
         """Gives a chroma Solid and name of solid. User can set any of the traingles surface to a wireplane. Return True if did. Return False is did not."""
         return False
@@ -115,7 +121,61 @@ class UserVG4DEAGeo(Detector):
     def wireplanevolumes(self):
         """Returns list of volumes with wire planes"""
         return []
+
+    @abc.abstractmethod
+    def sensitiveLogicalVolumes(self):
+        """Return list of sensitive logical volumes"""
+        return []
+
+    @abc.abstractmethod
+    def sensitivePhysicalVolumes(self):
+        """Return list of sensitive logical volumes"""
+        return []
+
+    @abc.abstractmethod
+    def channeldict(self):
+        """Return a dictionary of {ID:'volumename'}"""
+        raise RuntimeError("User is expected to return a dictionary of {ID:'VolumeName'} where ID is an integer and VolumeName is of type 'str'")
     
+    def _setup_photodetectors( self ):
+        """ define the timing spread and single photoelectron distribution """
+        self.set_time_dist_gaussian( 1.2, -6.0, 6.0 )
+        self.set_charge_dist_gaussian( 1.0, 0.1, 0.5, 1.5 )
+
+    def _setup_channels( self ):
+        """
+        fills in the solid_id_to_channel_index/solid_id_to_channel_id array look up array.
+        we also make a dictionary of channel id number to node. we will need this to
+        access information for various things.
+        searches for nodes with a logical volume name that contains any of the strings in the list 'detector_volumes'.
+        acrylic_detect is likely deprecated.
+        """
+        print "SETUP CHANNELS from solids list (",len(self.solids)," solids)"
+        self.solid_id_to_channel_index.resize( len(self.solids) )
+        self.solid_id_to_channel_index.fill(-1) # default no channels
+        self.solid_id_to_channel_id.resize( len(self.solids) )
+        self.solid_id_to_channel_id.fill(-1)
+
+        # prevous calls to add_solid by collada_to_chroma sized this array
+        for n,solid in enumerate(self.solids):
+            if any( volnames in solid.node.lv.id for volnames in self.sensitiveLogicalVolumes() ):
+                #print "Detector Solid: ",solid.node
+                #print solid.node.boundgeom.matrix
+                solid_id = n
+                channel_index = len(self.channel_index_to_solid_id)
+                channel_id = channel_index # later can do more fancy channel indexing/labeling
+                self.solid_id_to_channel_index[solid_id] = channel_index
+                self.solid_id_to_channel_id[solid_id] = channel_id
+
+                # resize channel_index arrays before filling
+                self.channel_index_to_solid_id.resize(channel_index+1)
+                self.channel_index_to_solid_id[channel_index] = solid_id
+                self.channel_index_to_channel_id.resize(channel_index+1)
+                self.channel_index_to_channel_id[channel_index] = channel_id
+                
+                # dictionary does not need resizing
+                self.channel_id_to_channel_index[channel_id] = channel_index
+        print "Number of Channels Added: ",len(self.channel_index_to_solid_id)
     
     
     
