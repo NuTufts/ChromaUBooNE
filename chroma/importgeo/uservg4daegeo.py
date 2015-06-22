@@ -57,7 +57,7 @@ class UserVG4DEAGeo(Detector):
         self.user_surfaces_dict = self.surfacesdict()
         self.unique_surfaces = []
         surface_index_dict = {None:-1}
-        surface_index = []
+        surface_index_list = []
         for id, mats in enumerate( zip(self.material1_index, self.material2_index) ):
             surface = None
             if self.unique_materials[mats[0]].name!=self.unique_materials[mats[1]].name:
@@ -84,10 +84,11 @@ class UserVG4DEAGeo(Detector):
                 self.unique_surfaces.append( surface )
                 surface_index_dict[ surface ] = self.unique_surfaces.index( surface )
                 print "Registering new surface: [%d] %s"%(surface_index_dict[surface],surface.name)
-            surface_index.append( surface_index_dict[ surface ] )
+            surface_index_list.append( surface_index_dict[ surface ] )
 
         print "number of unique surfaces: ",len(self.unique_surfaces)
         print self.unique_surfaces
+        self.surface_index = np.array( surface_index_list, dtype=np.int32 )
 
         # Setup the channels
         

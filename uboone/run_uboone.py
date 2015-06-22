@@ -3,6 +3,8 @@ from pyqtgraph.Qt import QtCore, QtGui
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
 from chroma.display.pyqtdisplay import PyQtDisplay
+from chroma.sim import Simulation
+from chroma.event import Photons
 
 # LOAD CHROMA UBOONE
 import os,sys
@@ -25,39 +27,13 @@ if __name__ == "__main__":
     app = QtGui.QApplication([])
     display = PyQtDisplay( det )
 
+    print "[ Start Sim. ]"
+    sim = Simulation(det, geant4_processes=0, nthreads_per_block=nthreads_per_block, max_blocks=1024)
+
     if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
         QtGui.QApplication.instance().exec_()
 
-# uboone_wireplane = Surface( 'uboone_wireplane' )
-# uboone_wireplane.nplanes = 3.0
-# uboone_wireplane.wire_pitch = 0.3
-# uboone_wireplane.wire_diameter = 0.015
-# uboone_wireplane.transmissive = 1
-# uboone_wireplane.model = Surface.SURFACE_WIREPLANE
 
-
-# def add_wireplane_surface( solid ):
-#     # function detector class will use to add a wireplane surface to the geometry
-#     # set surface for triangles on x=-1281.0 plane
-#     for n,triangle in enumerate(solid.mesh.triangles):
-#         nxplane = 0
-#         for ivert in triangle:
-#             if solid.mesh.vertices[ivert,0]==-1281.0:
-#                 nxplane += 1
-#         if nxplane==3:
-#             print [ solid.mesh.vertices[x] for x in triangle ]
-#             solid.surface[ n ] = uboone_wireplane
-#             solid.unique_surfaces = np.unique( solid.surface )
-
-# daefile = "dae/microboone_32pmts_nowires_cryostat.dae"
-# geom = ubooneDet( daefile, detector_volumes=["vol_PMT_AcrylicPlate","volPaddle_PMT"],
-#                   #wireplane_volumes=[('volTPCPlane_PV0x7f868ac5ef50',add_wireplane_surface)],
-#                   acrylic_detect=True, acrylic_wls=False,
-#                   read_bvh_cache=True, cache_dir="./uboone_cache",
-#                   dump_node_info=False)
-# sim = Simulation(geom, geant4_processes=0, nthreads_per_block=nthreads_per_block, max_blocks=1024)
-# geom.mesh.vertices
-# geom.mesh.triangles
 
 # # Generate photons
 # nphotons = 256*1000
