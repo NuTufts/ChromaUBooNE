@@ -14,7 +14,7 @@ uboone_wireplane.model = Surface.SURFACE_WIREPLANE
 class uboone( UserVG4DEAGeo ):
 
     def __init__(self):
-        super(uboone,self).__init__( "uboone", "dae/microboone_32pmts_nowires_cryostat.dae", )
+        super(uboone,self).__init__( "uboone", "dae/microboone_32pmts_nowires_cryostat_weldwireplanes_wchannelids.dae" )
 
     def surfacesdict(self):
         # Steel/LAr
@@ -91,7 +91,11 @@ class uboone( UserVG4DEAGeo ):
         return ["pvPMT","pvPaddle"]
 
     def channeldict(self):
-        channelmap = { }
+        channelmap = {}
+        for pmtid in xrange(0,32):
+            channelmap["pvPMT%d"%(pmtid) ] = pmtid
+        for paddleid in xrange(32,36):
+            channelmap["pvPaddle%d"%(paddleid)] = paddleid
         return channelmap
 
     def wireplanevolumes(self):

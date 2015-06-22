@@ -291,6 +291,13 @@ class DAENode(object):
     @classmethod
     def parse_extra_surface( cls, dae ):
         """
+        Empty looks like the following:
+        <library_nodes>
+          ...
+          <extra>
+            <meta/>
+          </extra>
+        </library_nodes>
         """
         log.debug("collecting opticalsurface/boundarysurface/skinsurface info from library_nodes/extra/")
         library_nodes = dae.xmlnode.find(".//"+tag("library_nodes"))

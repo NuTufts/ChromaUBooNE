@@ -91,7 +91,7 @@ class UserVG4DEAGeo(Detector):
         self.surface_index = np.array( surface_index_list, dtype=np.int32 )
 
         # Setup the channels
-        
+        self._setup_channels()
 
         # Setup the BVH
         if self.bvh is None:
@@ -156,15 +156,43 @@ class UserVG4DEAGeo(Detector):
         self.solid_id_to_channel_index.fill(-1) # default no channels
         self.solid_id_to_channel_id.resize( len(self.solids) )
         self.solid_id_to_channel_id.fill(-1)
+        self.user_channel_dict = self.channeldict()
 
         # prevous calls to add_solid by collada_to_chroma sized this array
         for n,solid in enumerate(self.solids):
+            # loop through solids and find sensitive logical volumes
             if any( volnames in solid.node.lv.id for volnames in self.sensitiveLogicalVolumes() ):
-                #print "Detector Solid: ",solid.node
+                #print "Sensitive Detector Solid: ",solid.node," LV ID=",solid.node.lv.id
+                # Need to find physical volume in order to assign channel ID
+                found = False
+                current = solid.node
+                history = []
+                while not found:
+                    match = False
+                    for pvname in self.sensitivePhysicalVolumes():
+                        if pvname in current.pv.id:
+                            match = True
+                            break
+                    #print "Match=",match," current=",current.pv.id," looking for ",self.sensitivePhysicalVolumes()
+                    history.append( current.pv.id )
+                    if match:
+                        found = True
+                    else:
+                        current = current.parent
+                    if current is None:
+                        break
+                if found==False:
+                    raise RuntimeError("Could not find channel ID for logical volume: %s"%(str(history)))
+
                 #print solid.node.boundgeom.matrix
+                pvname = current.pv.id.split("0x")[0]
+                if pvname not in self.user_channel_dict:
+                    raise RuntimeError("Unassigned channel number for physical volume=%s that contains a sensitive detector volume"%(pvname))
+
+                channel_id = self.user_channel_dict[pvname]
+                    
                 solid_id = n
                 channel_index = len(self.channel_index_to_solid_id)
-                channel_id = channel_index # later can do more fancy channel indexing/labeling
                 self.solid_id_to_channel_index[solid_id] = channel_index
                 self.solid_id_to_channel_id[solid_id] = channel_id
 
