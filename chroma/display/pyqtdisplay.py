@@ -37,6 +37,7 @@ class PyQtDisplay():
         photon_colors = np.zeros( (nphotons,4), dtype=np.float )
         self.hit_plot = gl.GLScatterPlotItem( pos=photon_end_pos, color=photon_colors, size=2.0, pxMode=True )
         self.hit_plot.rotate(90,1, 0, 0)
+        self.window.addItem( self.hit_plot )
 
     def show(self):
         self.window.show()
@@ -44,6 +45,7 @@ class PyQtDisplay():
     def plotEvent( self, ev ):
         ev.photons_end.dump_history()
         nphotons = ev.photons_end.pos[:,0:-1].shape[0]
+        print "plot ",nphotons," photons"
         flags = ev.photons_end.flags
         finalstate = flags[:] & chroma.event.SURFACE_DETECT | flags[:] & chroma.event.BULK_ABSORB | flags[:] & chroma.event.WIREPLANE_ABSORB | flags[:] & chroma.event.SURFACE_ABSORB
         photon_colors = np.zeros( (nphotons,4), dtype=np.float )
@@ -63,7 +65,8 @@ class PyQtDisplay():
     def plotEvents(self,events):
         for ev in events:
             self.plotEvent(ev)
-
+            print "Hit [ENTER] to plot next event."
+            raw_input()
 
 #if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
 #    QtGui.QApplication.instance().exec_()
