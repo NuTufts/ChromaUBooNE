@@ -1,10 +1,10 @@
-import os,sys
-#os.environ['PYOPENCL_CTX']='0:0'
-#os.environ['PYOPENCL_COMPILER_OUTPUT'] = '0'
+import os,sys,time
+os.environ['PYOPENCL_CTX']='0:0'
+os.environ['PYOPENCL_COMPILER_OUTPUT'] = '0'
 #os.environ['CUDA_PROFILE'] = '1'
 import chroma.api as api
-#api.use_opencl()
-api.use_cuda()
+api.use_opencl()
+#api.use_cuda()
 
 import numpy as np
 from pyqtgraph.Qt import QtCore, QtGui
@@ -46,16 +46,26 @@ def gen_photons( nphotons ):
 
 if __name__ == "__main__":
 
-    det = uboone()
-
     app = QtGui.QApplication([])
+
+    start = time.time()
+    det = uboone()
+    print "[ TIME ] Load detector data ",time.time()-start,"secs"
+
     display = PyQtDisplay( det )
 
     print "[ Start Sim. ]"
+    start = time.time()
     sim = Simulation(det, geant4_processes=0, nthreads_per_block=nthreads_per_block, max_blocks=1024)
+    print "[ TIME ] push geometry data to GPU: ",time.time()-start,"secs"
     nphotons = 256*100
+    start = time.time()
     photons = gen_photons( nphotons )
+    print "[ TIME ] generate photons ",time.time()-start,"secs"
+
+    start = time.time()
     events = sim.simulate( photons, keep_photons_end=True, max_steps=2000)
+    print "[ TIME ] propagate photons ",time.time()-start,"secs"
     
     for ev in events:
         nhits = ev.channels.hit[ np.arange(0,36)[:] ]
