@@ -1,10 +1,10 @@
 import os,sys,time
-os.environ['PYOPENCL_CTX']='0:0'
-os.environ['PYOPENCL_COMPILER_OUTPUT'] = '0'
+#os.environ['PYOPENCL_CTX']='0:0'
+#os.environ['PYOPENCL_COMPILER_OUTPUT'] = '0'
 #os.environ['CUDA_PROFILE'] = '1'
 import chroma.api as api
-api.use_opencl()
-#api.use_cuda()
+#api.use_opencl()
+api.use_cuda()
 
 import numpy as np
 from pyqtgraph.Qt import QtCore, QtGui
@@ -52,13 +52,13 @@ if __name__ == "__main__":
     det = uboone()
     print "[ TIME ] Load detector data ",time.time()-start,"secs"
 
-    display = PyQtDisplay( det )
+    #display = PyQtDisplay( det )
 
     print "[ Start Sim. ]"
     start = time.time()
     sim = Simulation(det, geant4_processes=0, nthreads_per_block=nthreads_per_block, max_blocks=1024)
     print "[ TIME ] push geometry data to GPU: ",time.time()-start,"secs"
-    nphotons = 256*100
+    nphotons = 640000
     start = time.time()
     photons = gen_photons( nphotons )
     print "[ TIME ] generate photons ",time.time()-start,"secs"
@@ -78,14 +78,14 @@ if __name__ == "__main__":
         print "hit prep: ",len( ev.photons_end.last_hit_triangles ),len(det.solid_id_to_channel_index),len(det.solid_id)
         channelhit = np.zeros( len(detected_photons), dtype=np.int )
         channelhit[:] = det.solid_id_to_channel_index[ det.solid_id[ ev.photons_end.last_hit_triangles[:] ] ]
-        for n,f in enumerate(detected_photons):
-            if f!=0:
-                # by convention chroma starts event at t=100.0
-                print "HIT DETID=",channelhit[n]," POS=",ev.photons_end.pos[n,:]," TIME=",ev.photons_end.t[n]-100.0
+        #for n,f in enumerate(detected_photons):
+        #    if f!=0:
+        #        # by convention chroma starts event at t=100.0
+        #        print "HIT DETID=",channelhit[n]," POS=",ev.photons_end.pos[n,:]," TIME=",ev.photons_end.t[n]-100.0
 
-        display.plotEvent( ev )
+        #display.plotEvent( ev )
 
 
-    if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
-        QtGui.QApplication.instance().exec_()
+    #if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
+    #    QtGui.QApplication.instance().exec_()
 
