@@ -56,11 +56,12 @@ class GPUPhotonFromSteps( GPUPhotons ):
         # we do the dumbest thing first (i.e., no attempt to do fancy GPU manipulations here)
         # on the CPU, we scan the steps to determine the total number of photons using poisson statistics
         # we assume the user has seeded the random number generator to her liking
+        tstart_nphotons = time.time()
         self.step_fsratio = np.array( self.steps_array[:,self._fsratio], dtype=np.float32 )
         self.nphotons_per_step = np.array( [ np.random.poisson( z ) for z in self.steps_array[:,self._nphotons].ravel() ], dtype=np.int )
         self.nphotons = reduce( lambda x, y : x + y, self.nphotons_per_step.ravel() )
         print "NSTEPS: ",self.nsteps
-        print "NPHOTONS: ",self.nphotons
+        print "NPHOTONS: ",self.nphotons," (time to determine per step=",time.time()-tstart_nphotons
         # now we make an index array for which step we need to get info from
         self.source_step_index = np.zeros( self.nphotons, dtype=np.int32 )
         current_index=0
@@ -68,6 +69,7 @@ class GPUPhotonFromSteps( GPUPhotons ):
             self.source_step_index[current_index:current_index+n_per_step] = n
             current_index += n_per_step
         # push everything to the GPU
+        tstart_transfer = time.time()
         if api.is_gpu_api_cuda():
             # step info
             self.step_pos1_gpu = ga.empty(shape=self.nsteps, dtype=ga.vec.float3)
@@ -113,6 +115,7 @@ class GPUPhotonFromSteps( GPUPhotons ):
         elif api.is_gpu_api_opencl():
             self.gpumod = get_module( "gen_photon_from_step.cl", cl_context, options=api_options, include_source_directory=True )
         self.gpufuncs = GPUFuncs( self.gpumod )
+        print "gen photon mem alloc/transfer time=",time.time()-tstart_transfer
 
         # need random numbers
         tgpu = time.time()
