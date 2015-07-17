@@ -1,16 +1,19 @@
 import os,sys,time
-os.environ['PYOPENCL_CTX']='0:0'
-os.environ['PYOPENCL_COMPILER_OUTPUT'] = '0'
+#os.environ['PYOPENCL_CTX']='0:0'
+#os.environ['PYOPENCL_COMPILER_OUTPUT'] = '0'
 #os.environ['CUDA_PROFILE'] = '1'
 import chroma.api as api
-api.use_opencl()
-#api.use_cuda()
+#api.use_opencl()
+api.use_cuda()
 
 import numpy as np
-from pyqtgraph.Qt import QtCore, QtGui
-import pyqtgraph as pg
-import pyqtgraph.opengl as gl
-from chroma.display.pyqtdisplay import PyQtDisplay
+try:
+    from pyqtgraph.Qt import QtCore, QtGui
+    import pyqtgraph as pg
+    import pyqtgraph.opengl as gl
+    from chroma.display.pyqtdisplay import PyQtDisplay
+except:
+    pass
 from chroma.sim import Simulation
 from chroma.event import Photons
 import chroma.event
@@ -46,13 +49,19 @@ def gen_photons( nphotons ):
 
 if __name__ == "__main__":
 
-    app = QtGui.QApplication([])
+    try:
+        app = QtGui.QApplication([])
+    except:
+        pass
 
     start = time.time()
     det = uboone()
     print "[ TIME ] Load detector data ",time.time()-start,"secs"
 
-    display = PyQtDisplay( det )
+    try:
+        display = PyQtDisplay( det )
+    except:
+        pass
 
     print "[ Start Sim. ]"
     start = time.time()
@@ -82,10 +91,15 @@ if __name__ == "__main__":
             if f!=0:
                 # by convention chroma starts event at t=100.0
                 print "HIT DETID=",channelhit[n]," POS=",ev.photons_end.pos[n,:]," TIME=",ev.photons_end.t[n]-100.0
+        try:
+            display.plotEvent( ev )
+        except:
+            pass
 
-        display.plotEvent( ev )
 
-
-    if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
-        QtGui.QApplication.instance().exec_()
+    try:
+        if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
+            QtGui.QApplication.instance().exec_()
+    except:
+        pass
 
