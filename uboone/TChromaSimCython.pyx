@@ -1,7 +1,6 @@
 from cprotobuf import encode_data
-import photonHit_pb2
 import ratchromadata_pb2
-from hitPhotons_pb import PhotonHits
+from hitPhotons_pb import PhotonHits,Photon
 import numpy as np
 
 import chroma.api as api
@@ -28,7 +27,7 @@ DTYPEINT16 = np.int16
 ctypedef np.int16_t DTYPEINT16_t
 det = uboone()
 
-sim = Simulation(det,geant4_processes=0,nthreads_per_block = 1, max_blocks = 1024)
+sim = Simulation(det,geant4_processes=0,nthreads_per_block=128, max_blocks = 1024)
 
 @cython.boundscheck(False)    
 cpdef PackPhotonMessage(  np.ndarray[DTYPEFLOAT32_t, ndim=2] pos, 
@@ -61,7 +60,7 @@ cpdef PackPhotonMessage(  np.ndarray[DTYPEFLOAT32_t, ndim=2] pos,
                               polY = pol[x,1],
                               polZ = pol[x,2],
                               trackID = x,
-                              origin = photonHit_pb2.Photon.CHROMA )
+                              origin = Photon.CHROMA )
             nhits += 1
     print "Packed ",nhits,"hits"
     phits.count = nhits
