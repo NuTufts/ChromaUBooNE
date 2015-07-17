@@ -67,7 +67,7 @@ if __name__ == "__main__":
     start = time.time()
     sim = Simulation(det, geant4_processes=0, nthreads_per_block=nthreads_per_block, max_blocks=1024)
     print "[ TIME ] push geometry data to GPU: ",time.time()-start,"secs"
-    nphotons = 256*100
+    nphotons = 640000
     start = time.time()
     photons = gen_photons( nphotons )
     print "[ TIME ] generate photons ",time.time()-start,"secs"
@@ -102,4 +102,3 @@ if __name__ == "__main__":
             QtGui.QApplication.instance().exec_()
     except:
         pass
-
