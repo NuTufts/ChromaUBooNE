@@ -7,6 +7,7 @@ import chroma.api as api
 api.use_cuda()
 from chroma.sim import Simulation
 from chroma.event import Photons
+from chroma.gpu.photon_fromstep import GPUPhotonFromSteps
 import chroma.event
 
 from uboone import uboone
@@ -29,7 +30,8 @@ det = uboone()
 
 sim = Simulation(det,geant4_processes=0,nthreads_per_block=128, max_blocks = 1024)
 
-@cython.boundscheck(False)    
+@cython.boundscheck(False)
+@cython.wraparound(False)
 cpdef PackPhotonMessage(  np.ndarray[DTYPEFLOAT32_t, ndim=2] pos, 
                         np.ndarray[DTYPEFLOAT32_t, ndim=2] d, 
                         np.ndarray[DTYPEFLOAT32_t, ndim=1] t,
@@ -41,11 +43,12 @@ cpdef PackPhotonMessage(  np.ndarray[DTYPEFLOAT32_t, ndim=2] pos,
     # we return a dict
     cdef float const1 = float((2*(np.pi)*(6.582*(10**-16))*(299792458.0)))
     cdef float const2 = (4.135667516 * (10**-21))
-
+    cdef int x
+    cdef int flaglen
     phits = PhotonHits()
-
+    flaglen = len(detect_flag)
     cdef int nhits = 0         
-    for x in range(len(detect_flag)):
+    for x in xrange(flaglen):
         if detect_flag[x]!=0:
             phits.photon.add( PMTID=chanhit[x],
                               Time= t[x],
@@ -68,6 +71,7 @@ cpdef PackPhotonMessage(  np.ndarray[DTYPEFLOAT32_t, ndim=2] pos,
                       
     
 @cython.boundscheck(False)    
+@cython.wraparound(False)
 cpdef MakePhotonMessage(chromaData):
     # in this version, we use cprotobuf
     photons = GenScintPhotons(chromaData)
@@ -104,45 +108,46 @@ cpdef MakePhotonMessage(chromaData):
     return str(phits)
 
 @cython.boundscheck(False)
+@cython.wraparound(False)
 def GenScintPhotons(protoString):
-    stime = time.clock()
+    stime = time.time()
     cdef int nsphotons,stepPhotons,i,j
-    cdef np.ndarray[DTYPEFLOAT32_t,ndim = 2] pos, pol
-    cdef np.ndarray[DTYPEFLOAT32_t,ndim = 1] wavelengths, t
+
+    t1 = time.time()
     nsphotons = 0
     for i,sData in enumerate(protoString.stepdata):
         nsphotons += sData.nphotons
     print "NSPHOTONS: ",nsphotons
-    pos = np.zeros((nsphotons,3),dtype=np.float32)
-    pol = np.zeros_like(pos)
-    t = np.zeros(nsphotons, dtype=np.float32)
-    wavelengths = np.empty(nsphotons, np.float32)
-    wavelengths.fill(128.0)
-    dphi = np.random.uniform(0,2.0*np.pi, nsphotons)
-    dcos = np.random.uniform(-1.0, 1.0, nsphotons)
-    phi = np.random.uniform(0,2.0*np.pi, nsphotons).astype(np.float32)
-    dir = np.array( zip( np.sqrt(1-dcos[:]*dcos[:])*np.cos(dphi[:]), np.sqrt(1-dcos[:]*dcos[:])*np.sin(dphi[:]), dcos[:] ), dtype=np.float32 )
-    pol[:,0] = np.cos(phi)
-    pol[:,1] = np.sin(phi)
+
+    cdef np.ndarray[DTYPEFLOAT32_t,ndim = 2] step_data
+    step_data = np.zeros( (len(protoString.stepdata), 10 ), dtype=np.float32 )
     stepPhotons = 0
     for i,sData in enumerate(protoString.stepdata):
         #instead of appending to array every loop, the full size (nsphotons x 3) is allocated to begin, then 
         #values are filled properly by incrementing stepPhotons.
-        for j in xrange(stepPhotons, (stepPhotons+sData.nphotons)):
-            pos[j,0] = np.random.uniform(sData.step_start_x,sData.step_end_x)
-            pos[j,1] = np.random.uniform(sData.step_start_y,sData.step_end_y)
-            pos[j,2] = np.random.uniform(sData.step_start_z,sData.step_end_z)
-        #moved pol outside of the loop. saved ~3 seconds in event loop time. 
-        # for j in xrange(stepPhotons, (stepPhotons+sData.nphotons)):
-        #     pol[j,0] = np.random.uniform(0,((1/3.0)**.5))
-        #     pol[j,1] = np.random.uniform(0,((1/3.0)**.5))
-        #     pol[j,2] = ((1 - pol[j,0]**2 - pol[j,1]**2)**.5)
-        for j in xrange(stepPhotons, (stepPhotons+sData.nphotons)):
-            t[j] = (np.random.exponential(1/45.0) + (sData.step_end_t-sData.step_start_t))
-        stepPhotons += sData.nphotons
-    etime = time.clock()
-    print "TIME TO GEN PHOTONS: ",(etime-stime)
-    return Photons(pos = pos, pol = pol, t = t, dir = dir, wavelengths = wavelengths)
+        step_data[i,0] = sData.step_start_x
+        step_data[i,1] = sData.step_start_y
+        step_data[i,2] = sData.step_start_z
+        step_data[i,3] = sData.step_end_x
+        step_data[i,4] = sData.step_end_y
+        step_data[i,5] = sData.step_end_z
+        step_data[i,6] = sData.nphotons
+        step_data[i,7] = 0.6
+        step_data[i,8] = 6.0
+        step_data[i,9] = 1500.0
+    print "PREP STEP INFO: ",time.time()-t1
+
+    t2 = time.time()
+    step_photons = GPUPhotonFromSteps( step_data )
+    print "GPUPhoton time: ",time.time()-t2
+    
+    t3 = time.time()
+    photons = step_photons.get()
+    print "Get gen photons from GPU: ",time.time()-t3
+
+    etime = time.time()
+    print "TOTAL TIME TO GEN PHOTONS: ",(etime-stime)
+    return photons
 
 
 
