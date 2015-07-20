@@ -16,13 +16,20 @@ except:
     pass
 from chroma.sim import Simulation
 from chroma.event import Photons
+from chroma.gpu.photon_fromstep import GPUPhotonFromSteps
 import chroma.event
 
 # LOAD CHROMA UBOONE
-nthreads_per_block = 1
+nthreads_per_block = 64
+DISPLAY = False
 
 from uboone import uboone
 
+def gen_stepdata_photons( context ):
+    steps = np.load( 'steps.npy' )
+    photons = GPUPhotonFromSteps( steps, cl_context=context )
+    return photons
+    
 
 def gen_photons( nphotons ):
 
@@ -50,7 +57,8 @@ def gen_photons( nphotons ):
 if __name__ == "__main__":
 
     try:
-        app = QtGui.QApplication([])
+        if DISPLAY:
+            app = QtGui.QApplication([])
     except:
         pass
 
@@ -59,7 +67,8 @@ if __name__ == "__main__":
     print "[ TIME ] Load detector data ",time.time()-start,"secs"
 
     try:
-        display = PyQtDisplay( det )
+        if DISPLAY:
+            display = PyQtDisplay( det )
     except:
         pass
 
@@ -67,9 +76,10 @@ if __name__ == "__main__":
     start = time.time()
     sim = Simulation(det, geant4_processes=0, nthreads_per_block=nthreads_per_block, max_blocks=1024)
     print "[ TIME ] push geometry data to GPU: ",time.time()-start,"secs"
-    nphotons = 640000
+    nphotons = 1000000
     start = time.time()
-    photons = gen_photons( nphotons )
+    #photons = gen_photons( nphotons )
+    photons = gen_stepdata_photons( sim.context ).get()
     print "[ TIME ] generate photons ",time.time()-start,"secs"
 
     start = time.time()
@@ -83,22 +93,25 @@ if __name__ == "__main__":
         print "Photoelectrons in each channel: "
         print ev.channels.q
         detected_photons = ev.photons_end.flags[:] & chroma.event.SURFACE_DETECT  # bit-wise AND.  if detected bit set, then value >0, otherwise 0.
-        print "Detected photons: ",np.count_nonzero( detected_photons )
+        print "Detected photons: ",np.count_nonzero( detected_photons )," frac: ",np.count_nonzero( detected_photons )/len(photons.pos)
         print "hit prep: ",len( ev.photons_end.last_hit_triangles ),len(det.solid_id_to_channel_index),len(det.solid_id)
+        ev.photons_end.dump_history()
         channelhit = np.zeros( len(detected_photons), dtype=np.int )
         channelhit[:] = det.solid_id_to_channel_index[ det.solid_id[ ev.photons_end.last_hit_triangles[:] ] ]
-        for n,f in enumerate(detected_photons):
-            if f!=0:
-                # by convention chroma starts event at t=100.0
-                print "HIT DETID=",channelhit[n]," POS=",ev.photons_end.pos[n,:]," TIME=",ev.photons_end.t[n]-100.0
+        #for n,f in enumerate(detected_photons):
+        #    if f!=0:
+        #        # by convention chroma starts event at t=100.0
+        #        print "HIT DETID=",channelhit[n]," POS=",ev.photons_end.pos[n,:]," TIME=",ev.photons_end.t[n]-100.0
         try:
-            display.plotEvent( ev )
+            if DISPLAY:
+                display.plotEvent( ev )
         except:
             pass
 
 
     try:
-        if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
-            QtGui.QApplication.instance().exec_()
+        if DISPLAY:
+            if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
+                QtGui.QApplication.instance().exec_()
     except:
         pass

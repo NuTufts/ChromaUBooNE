@@ -58,7 +58,8 @@ class GPUPhotonFromSteps( GPUPhotons ):
         # we assume the user has seeded the random number generator to her liking
         tstart_nphotons = time.time()
         self.step_fsratio = np.array( self.steps_array[:,self._fsratio], dtype=np.float32 )
-        self.nphotons_per_step = np.array( [ np.random.poisson( z ) for z in self.steps_array[:,self._nphotons].ravel() ], dtype=np.int )
+        #self.nphotons_per_step = np.array( [ np.random.poisson( z ) for z in self.steps_array[:,self._nphotons].ravel() ], dtype=np.int )
+        self.nphotons_per_step = self.steps_array[ self._nphotons, : ]
         self.nphotons = reduce( lambda x, y : x + y, self.nphotons_per_step.ravel() )
         print "NSTEPS: ",self.nsteps
         print "NPHOTONS: ",self.nphotons," (time to determine per step=",time.time()-tstart_nphotons
@@ -167,13 +168,13 @@ class GPUPhotonFromSteps( GPUPhotons ):
             pos  = np.zeros( shape=(self.nphotons,3), dtype=np.float32 )
             pdir = np.zeros( shape=(self.nphotons,3), dtype=np.float32 )
             pol  = np.zeros( shape=(self.nphotons,3), dtype=np.float32 )
-        gapos = self.pos.get()
-        gadir = self.dir.get()
-        gapol = self.pol.get()
-        for n in xrange(0,self.nphotons):
-            for i in xrange(0,3):
-                pos[n,i]  = gapos[n][i]
-                pdir[n,i] = gadir[n][i]
+            gapos = self.pos.get()
+            gadir = self.dir.get()
+            gapol = self.pol.get()
+            for n in xrange(0,self.nphotons):
+                for i in xrange(0,3):
+                    pos[n,i]  = gapos[n][i]
+                    pdir[n,i] = gadir[n][i]
                 pol[n,i]  = gapol[n][i]
         t = self.t.get().view(np.float32)
         wavelengths = self.wavelengths.get().view(np.float32)

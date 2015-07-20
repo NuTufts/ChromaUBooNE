@@ -232,7 +232,7 @@ class GPUPhotons(object):
                                              self.pos, self.dir, self.wavelengths, self.pol, self.t, self.flags, self.last_hit_triangles, 
                                              self.weights, np.int32(nsteps), np.int32(iuse_weights), np.int32(scatter_first), 
                                              gpu_geometry.gpudata, block=(nthreads_per_block,1,1), grid=(blocks, 1))
-                    cuda.Context.get_current().synchronize()
+                    #cuda.Context.get_current().synchronize()
                 elif api.is_gpu_api_opencl():
                     self.gpu_funcs.propagate( comqueue, (photons_this_round,1,1), None,
                                               np.int32(first_photon), np.int32(photons_this_round),
@@ -260,8 +260,8 @@ class GPUPhotons(object):
                 end_chunk = time.time()
                 chunk_time = end_chunk-start_chunk
                 #print "chunk time: ",chunk_time
-                if chunk_time>2.5:
-                    adapt_factor *= 0.5
+                #if chunk_time>2.5:
+                #    adapt_factor *= 0.5
             step += nsteps
             scatter_first = 0 # Only allow non-zero in first pass
             end_step = time.time()
@@ -271,6 +271,7 @@ class GPUPhotons(object):
                 start_requeue = time.time()
                 #print "reset photon queues"
                 if api.is_gpu_api_cuda():
+                    cuda.Context.get_current().synchronize() # ensure all threads done
                     #temp = input_queue_gpu
                     #input_queue_gpu = output_queue_gpu
                     #output_queue_gpu = temp
@@ -283,14 +284,17 @@ class GPUPhotons(object):
                     nphotons = output_queue[0]-1
                     input_queue_gpu.set( output_queue )
                     output_queue_gpu[:1].set(np.ones(shape=1,dtype=np.uint32))
-                    cuda.Context.get_current().synchronize()
+                    
                 elif api.is_gpu_api_opencl():
                     temp_out = output_queue_gpu.get()
                     nphotons = temp_out[0]
                     input_queue_gpu.set( temp_out[1:], queue=comqueue ) # set the input queue to have index of photons still need to be run
                     output_queue_gpu[:1].set( np.ones(shape=1,dtype=np.uint32), queue=comqueue ) # reset first instance to be one
                 end_requeue = time.time()
-                #print "re-queue time: ",end_requeue-start_requeue
+                #print "re-queue time (nphotons=",nphotons"): ",end_requeue-start_requeue
+                if nphotons==0:
+                    break
+
         end_prop = time.time()
         print "propagation time: ",end_prop-start_prop," secs"
         end_flags = self.flags.get()
