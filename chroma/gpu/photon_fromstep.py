@@ -24,13 +24,14 @@ class GPUPhotonFromSteps( GPUPhotons ):
     _x1 = 0
     _y1 = 1
     _z1 = 2
-    _x2 = 3
-    _y2 = 4
-    _z2 = 5
-    _nphotons = 6
-    _fsratio = 7
-    _fconst = 8
-    _sconst = 9
+    _t1 = 3
+    _x2 = 4
+    _y2 = 5
+    _z2 = 6
+    _nphotons = 7
+    _fsratio = 8
+    _fconst = 9
+    _sconst = 10
     def __init__(self, steps_arr, multiple=1.0, nthreads_per_block=64, max_blocks=1024, ncopies=1,
                  seed=None, cl_context=None):
         """
@@ -39,7 +40,7 @@ class GPUPhotonFromSteps( GPUPhotons ):
         Parameters
         ----------
         steps_arr : numpy.array with shape=(N,10) dtype=np.float
-           contains [ x1, y1, z1, x2, y2, z2, nphotons, fast_to_slow_ratio, fast_time_constatn, slow_time_constatn ]
+           contains [ x1, y1, z1, t1, x2, y2, z2, nphotons, fast_to_slow_ratio, fast_time_constatn, slow_time_constatn ]
            in the future could generalize this to many different time components.
            developed for liquid argon TPCs.
         multiple : float
@@ -82,7 +83,7 @@ class GPUPhotonFromSteps( GPUPhotons ):
             self.dir = ga.empty( shape=self.nphotons, dtype=ga.vec.float3 )
             self.pol = ga.empty( shape=self.nphotons, dtype=ga.vec.float3 )
             self.wavelengths = ga.empty(shape=self.nphotons*ncopies, dtype=np.float32)
-            self.t = ga.to_gpu( 100.0*np.ones(self.nphotons*ncopies, dtype=np.float32) )
+            self.t = ga.to_gpu( np.zeros(self.nphotons*ncopies, dtype=np.float32) )
             self.last_hit_triangles = ga.empty(shape=self.nphotons*ncopies, dtype=np.int32)
             self.flags = ga.empty(shape=self.nphotons*ncopies, dtype=np.uint32)
             self.weights = ga.empty(shape=self.nphotons*ncopies, dtype=np.float32)
@@ -104,7 +105,8 @@ class GPUPhotonFromSteps( GPUPhotons ):
             self.weights = ga.empty( cl_queue, self.nphotons*ncopies, dtype=np.float32)
         
         self.step_pos1_gpu.set( to_float3( self.steps_array[:,0:3] ) )
-        self.step_pos2_gpu.set( to_float3( self.steps_array[:,3:6] ) )
+        self.step_pos2_gpu.set( to_float3( self.steps_array[:,4:7] ) )
+        self.t.set( self.steps_array[:,3] )
         self.ncopies = ncopies
         self.true_nphotons = self.nphotons
 
@@ -176,7 +178,7 @@ class GPUPhotonFromSteps( GPUPhotons ):
                     pos[n,i]  = gapos[n][i]
                     pdir[n,i] = gadir[n][i]
                 pol[n,i]  = gapol[n][i]
-        t = self.t.get().view(np.float32)
+        t = self.t.get().view(np.float32) - 100.0
         wavelengths = self.wavelengths.get().view(np.float32)
 
         return chroma.event.Photons( pos=pos, dir=pdir, pol=pol, t=t, wavelengths=wavelengths )

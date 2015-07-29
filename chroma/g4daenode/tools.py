@@ -24,7 +24,10 @@ def read_properties( xmlnode ):
     for matrix in xmlnode.findall(tag("matrix")):
         xref = matrix.attrib['name']
         assert matrix.attrib['coldim'] == '2' 
-        data[xref] = as_optical_property_vector( matrix.text )
+        try:
+            data[xref] = as_optical_property_vector( matrix.text )
+        except:
+            print "Could not process data[",xref,"]: ",matrix.text
     pass
     properties = {} 
     for property_ in xmlnode.findall(tag("property")):
@@ -34,6 +37,7 @@ def read_properties( xmlnode ):
         if xref in data:
             properties[prop] = data[xref] 
         else:
-            log.warn("xref not in data for property_ %s " % repr(property_))
+            #log.warn("xref not in data for property_ %s " % repr(property_))
+            print "xref not in data for property_ %s " % repr(property_)
         pass
     return properties

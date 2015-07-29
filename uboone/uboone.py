@@ -14,7 +14,8 @@ uboone_wireplane.model = Surface.SURFACE_WIREPLANE
 class uboone( UserVG4DEAGeo ):
 
     def __init__(self):
-        super(uboone,self).__init__( "uboone", "dae/microboone_32pmts_nowires_cryostat_weldwireplanes_wchannelids.dae" )
+        #super(uboone,self).__init__( "uboone", "dae/microboone_32pmts_nowires_cryostat_weldwireplanes_wchannelids.dae" )
+        super(uboone,self).__init__( "uboone", "dae/uboonev2.dae" )
 
     def surfacesdict(self):
         # Steel/LAr
@@ -74,6 +75,13 @@ class uboone( UserVG4DEAGeo ):
         black_surface.set('reemit', 0.0)
         black_surface.transmissive = 0
 
+        #boundary_surfaces = { ("STEEL_STAINLESS_Fe7Cr2Ni", "LAr"):black_surface,
+        #                      ("Titanium", "LAr"):black_surface,
+        #                      ("Acrylic", "LAr"):acrylic_surface,
+        #                      ("G10", "LAr"):black_surface,
+        #                      ("Glass", "LAr"):black_surface,
+        #                      ("Glass", "STEEL_STAINLESS_Fe7Cr2Ni"):black_surface,
+        #                      ("Glass","Vacuum"):black_surface, }
         boundary_surfaces = { ("STEEL_STAINLESS_Fe7Cr2Ni", "LAr"):steel_surface,
                               ("Titanium", "LAr"):titanium_surface,
                               ("Acrylic", "LAr"):acrylic_surface,
@@ -100,8 +108,9 @@ class uboone( UserVG4DEAGeo ):
 
     def wireplanevolumes(self):
         """Returns list of volumes with wire planes"""
-        return ['volTPCPlane_PV']
-
+        return []
+        #return ['volTPCPlane_PV']
+    
     def setaswireplane(self,name,solid):
         """Gives a chroma Solid. User can set any of the traingles surface to a wireplane. Return True if did. Return False is did not."""
         if "volTPCPlane_PV" in name:

@@ -89,9 +89,9 @@ gen_photon_from_step( int first_photon, int nphotons, int* source_step_index,
 
   float fsrand = curand_uniform(&rng);
   if ( fsrand<step_fsratio[stepid] ) // fast time component
-    t[id] += -1.0*logf( curand_uniform(&rng) )/fast_time_constant;
+    t[id] += -1.0*logf( 1.0-curand_uniform(&rng) )*fast_time_constant;
   else
-    t[id] += -1.0*logf( curand_uniform(&rng) )/slow_time_constant;
+    t[id] += -1.0*logf( 1.0-curand_uniform(&rng) )*slow_time_constant;
 
   // ------------------------------------------
   // return the new random state
